@@ -35,7 +35,7 @@ fn main() {
     println!("{}", b);
 
     // ai_solve(b, solver::Random);
-    ai_solve(b, solver::Full);
+    ai_solve(b, solver::Exact);
     // user_solve();
 }
 

@@ -2,9 +2,9 @@ use color::Color;
 use board::Board;
 
 mod random;
-mod full;
+mod exact;
 pub use self::random::Random;
-pub use self::full::Full;
+pub use self::exact::Exact;
 
 pub type Solution = Vec<Color>;
 
