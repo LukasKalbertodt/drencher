@@ -1,9 +1,12 @@
 use color::Color;
 use std::ops;
 use std::fmt;
+use std::collections::HashMap;
 use rand;
 use rand::distributions::{Range, IndependentSample};
 
+
+#[derive(Clone)]
 pub struct Board {
     size: u8,
     cells: Vec<Color>,
@@ -30,36 +33,64 @@ impl Board {
     }
 
     pub fn drench(&mut self, new: Color) {
-        let mut stack = Vec::new();
-        let start_color = self[(0, 0)];
-        stack.push((0, 0));
-
-        if new == start_color {
-            return;
-        }
-
-        while let Some((x, y)) = stack.pop() {
-            if self[(x, y)] == start_color {
+        if new != self[(0, 0)] {
+            for (x, y) in self.field_coords().0 {
                 self[(x, y)] = new;
-
-                if x > 0 {
-                    stack.push((x - 1, y));
-                }
-                if y > 0 {
-                    stack.push((x, y - 1));
-                }
-                if x < self.size - 1 {
-                    stack.push((x + 1, y));
-                }
-                if y < self.size - 1 {
-                    stack.push((x, y + 1));
-                }
             }
         }
     }
 
+    fn field_coords(&self) -> (Vec<(u8, u8)>, Vec<(u8, u8)>) {
+        let mut stack = Vec::new();
+        let start_color = self[(0, 0)];
+        stack.push((0, 0));
+
+        let mut visited = Vec::new();
+        let mut border = Vec::new();
+
+        while let Some((x, y)) = stack.pop() {
+            let already_visited = visited
+                .iter()
+                .find(|&&pos| pos == (x, y))
+                .is_none();
+            if already_visited {
+                if self[(x, y)] == start_color {
+                    visited.push((x, y));
+
+                    if x > 0 {
+                        stack.push((x - 1, y));
+                    }
+                    if y > 0 {
+                        stack.push((x, y - 1));
+                    }
+                    if x < self.size - 1 {
+                        stack.push((x + 1, y));
+                    }
+                    if y < self.size - 1 {
+                        stack.push((x, y + 1));
+                    }
+                } else {
+                    border.push((x, y));
+                }
+            }
+        }
+
+        (visited, border)
+    }
+
     pub fn is_drenched(&self) -> bool {
         self.cells.iter().all(|&c| c == self[(0, 0)])
+    }
+
+    pub fn adjacent_colors(&self) -> HashMap<Color, usize> {
+        let mut map = HashMap::new();
+
+        for (x, y) in self.field_coords().1 {
+            let color = self[(x, y)];
+            *map.entry(color).or_insert(0) += 1;
+        }
+
+        map
     }
 }
 

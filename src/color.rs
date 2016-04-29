@@ -1,7 +1,7 @@
 use std::fmt;
 
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Color {
     pub tag: u8,
 }

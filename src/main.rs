@@ -2,8 +2,10 @@ extern crate rand;
 
 mod color;
 mod board;
+mod solver;
 
 use color::Color;
+use solver::Solver;
 use board::Board;
 use std::io::{self, Write};
 
@@ -27,14 +29,29 @@ fn prompt_color() -> Option<String> {
 }
 
 fn main() {
-    // for i in 0..6 {
-    //     let col = Color::new(i);
-    //     print!("{}", col);
-    // }
-
-    let mut b = Board::random(4);
+    let b = Board::random(
+        std::env::args().nth(1).unwrap().parse().unwrap()
+    );
     println!("{}", b);
 
+    // ai_solve(b, solver::Random);
+    ai_solve(b, solver::Full);
+    // user_solve();
+}
+
+#[allow(dead_code)]
+fn ai_solve<S: Solver>(mut b: Board, ai: S) {
+    let res = ai.solve(&b);
+    for c in res {
+        println!("Drenching: {}", c);
+        b.drench(c);
+        println!("{}", b);
+    }
+    println!("");
+}
+
+#[allow(dead_code)]
+fn user_solve(mut b: Board) {
     while let Some(line) = prompt_color() {
         match line.parse() {
             Ok(n) => {
