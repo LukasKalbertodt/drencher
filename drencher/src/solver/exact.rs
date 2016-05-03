@@ -12,7 +12,7 @@ struct State {
 }
 
 impl Solver for Exact {
-    fn solve(self, b: &Board) -> Solution {
+    fn solve(&self, b: &Board) -> Solution {
         let initial = State {
             moves: vec![],
             board: b.clone(),

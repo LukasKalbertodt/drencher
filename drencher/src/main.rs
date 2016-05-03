@@ -1,73 +1,73 @@
 extern crate rand;
+extern crate docopt;
+extern crate rustc_serialize;
 
 mod color;
 mod board;
 mod solver;
 
-use color::Color;
 use solver::Solver;
 use board::Board;
-use std::io::{self, Write};
+use docopt::Docopt;
 
-fn read_line() -> Option<String> {
-    let mut buffer = String::new();
-    match io::stdin().read_line(&mut buffer) {
-        Err(_) => None,
-        Ok(_) => Some(buffer.trim().to_owned()),
-    }
+const USAGE: &'static str = "
+Drencher: implementation of the \"drench\" game with AI- and human-players.
+
+Usage:
+  drencher [options] [<player>]
+  drencher (-h | --help)
+  drencher --version
+
+Options:
+  -h --help             Show this screen.
+  --version             Show version.
+  --size=<size>         Side length of the board [default: 14].
+  --board=<initial>     Initial configuration of the board [default: random]
+";
+
+#[derive(Debug, RustcDecodable)]
+struct Args {
+    arg_player: Option<String>,
+    flag_version: bool,
+    flag_size: u8, // TODO
+    flag_board: String,
 }
 
-fn prompt_color() -> Option<String> {
-    print!("Give meh color!!1 (");
-    for n in 0..6 {
-        let c = Color::new(n);
-        print!("{}->{}, ", n, c);
-    }
-    print!(")");
-    let _ = io::stdout().flush();
-    read_line()
-}
+
 
 fn main() {
-    let b = Board::random(
-        std::env::args().nth(1).unwrap().parse().unwrap()
-    );
-    println!("{}", b);
-
-    // ai_solve(b, solver::Random);
-    ai_solve(b, solver::Exact);
-    // user_solve();
-}
-
-#[allow(dead_code)]
-fn ai_solve<S: Solver>(mut b: Board, ai: S) {
-    let res = ai.solve(&b);
-    for c in res {
-        println!("Drenching: {}", c);
-        b.drench(c);
-        println!("{}", b);
+    let args: Args = Docopt::new(USAGE)
+                            .and_then(|d| d.decode())
+                            .unwrap_or_else(|e| e.exit());
+    if args.flag_version {
+        println!("drencher {}", env!("CARGO_PKG_VERSION"));
+        return;
     }
-    println!("");
-}
 
-#[allow(dead_code)]
-fn user_solve(mut b: Board) {
-    while let Some(line) = prompt_color() {
-        match line.parse() {
-            Ok(n) => {
-                let c = Color::new(n);
-                println!("drenching {}", c);
+    let board = match &*args.flag_board {
+        "random" => Board::random(args.flag_size),
+        other => panic!("Intial board '{}' doesn't exist!", other),
+    };
 
-                b.drench(c);
-                println!("{}", b);
+    let exact;
+    let random;
+    let human;
 
-                if b.is_drenched() {
-                    break;
-                }
-            },
-            Err(_) => {
-                println!("fuuuuuu");
-            }
+    let player: &Solver = match &*args.arg_player.unwrap_or("human".into()) {
+        "human" => { human = solver::Human; &human },
+        "exact" => { exact = solver::Exact; &exact },
+        "random" => { random = solver::Random; &random },
+        other => panic!("Player '{}' does not exist!", other),
+    };
+
+    let res = player.solve(&board);
+    if !player.prints_output() {
+        let mut board = board;
+        for c in res {
+            println!("Drenching: {}", c);
+            board.drench(c);
+            println!("{}", board);
         }
+        println!("");
     }
 }

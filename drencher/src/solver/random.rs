@@ -7,7 +7,7 @@ use rand::distributions::{Range, IndependentSample};
 pub struct Random;
 
 impl Solver for Random {
-    fn solve(self, b: &Board) -> Solution {
+    fn solve(&self, b: &Board) -> Solution {
         let mut rng = rand::thread_rng();
         let range = Range::new(0, 6);
         let mut solution = Solution::new();
