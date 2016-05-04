@@ -60,10 +60,13 @@ fn main() {
         other => panic!("Player '{}' does not exist!", other),
     };
 
-    let res = player.solve(&board);
+    let res = player.solve(board.clone());
     if !player.prints_output() {
         let mut board = board;
-        for c in res {
+        if res.is_err() {
+            println!("!!! no solution found !!!");
+        }
+        for c in res.unwrap_or_else(|e| e) {
             println!("Drenching: {}", c);
             board.drench(c);
             println!("{}", board);

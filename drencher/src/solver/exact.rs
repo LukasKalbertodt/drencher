@@ -12,10 +12,10 @@ struct State {
 }
 
 impl Solver for Exact {
-    fn solve(&self, b: &Board) -> Solution {
+    fn solve(&self, b: Board) -> Result<Solution, Solution> {
         let initial = State {
             moves: vec![],
-            board: b.clone(),
+            board: b,
         };
         let mut states = vec![initial];
         let mut count = 0;
@@ -35,7 +35,7 @@ impl Solver for Exact {
             for state in &states {
                 state_count += 1;
                 if state.board.is_drenched() {
-                    return state.moves.clone();
+                    return Ok(state.moves.clone());
                 }
 
                 let adjacent_colors = state.board.adjacent_colors();
