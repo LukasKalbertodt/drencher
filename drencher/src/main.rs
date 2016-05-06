@@ -82,7 +82,7 @@ fn main() {
     if !player.prints_output() {
         // go through all the moves and print the board at every state
         let mut board = board;
-        for c in res.unwrap_or_else(|e| e) {
+        for &c in res.as_ref().unwrap_or_else(|e| e) {
             println!("Drenching: {}", c);
             board.drench(c);
             println!("{}", board);
