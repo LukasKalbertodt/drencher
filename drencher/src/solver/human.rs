@@ -25,7 +25,7 @@ impl Solver for Human {
 
         // while the user still inputs a color...
         while let Some(color) = prompt_color() {
-            println!("drenching {}", color);
+            println!("+++++ drenching {}", color);
 
             out.push(color);
             b.drench(color);
@@ -36,12 +36,16 @@ impl Solver for Human {
             }
         }
 
+        // apparently we didn't solve the board, but we don't have any more
+        // inputs
         Err(out)
     }
 }
 
 fn prompt_color() -> Option<Color> {
+    // While the user gives us invalid input, we simply loop
     loop {
+        // show all possible colors
         print!("Color to drench with next?");
         print!(" ({}->{}", 1, Color::new(0));
         for n in 1..6 {
@@ -49,19 +53,31 @@ fn prompt_color() -> Option<Color> {
             print!(", {}->{}", n + 1, c);
         }
         print!(")");
-        let _ = io::stdout().flush();
 
+        // flush and return `None` if it wasn't sucessful (very unlikely)
+        let res = io::stdout().flush();
+        if res.is_err() {
+            println!("Wasn't able to flush stdout!");
+            return None;
+        }
+
+        // Read the users input and try to parse it as `u8`. Meanings of the
+        // values of `maybe_num`:
+        // - Err(true) -> an IO error occured
+        // - Err(false) -> a parsing error occured
+        // - Ok(_) -> the parsed `u8`
         let mut buffer = String::new();
         let maybe_num = io::stdin()
             .read_line(&mut buffer)
-            .ok()
+            .map_err(|_| true)
             .map(|_| buffer.trim())
-            .and_then(|line| line.parse().ok());
+            .and_then(|line| line.parse().map_err(|_| false));
 
         match maybe_num {
-            None => println!("Not a number!"),
-            Some(0) => println!("Colors are 1-indexed!"),
-            Some(n) => return Some(Color::new(n - 1)),
+            Err(true) => return None,
+            Err(false) => println!("Not a number!"),
+            Ok(0) => println!("Colors are 1-indexed!"),
+            Ok(n) => return Some(Color::new(n - 1)),
         }
     }
 }

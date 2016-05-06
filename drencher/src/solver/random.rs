@@ -1,7 +1,7 @@
 //! Random solver.
 //!
 //! A solver that just outputs a random valid move. If the solution wasn't
-//! found after MAX_MOVES moves, an error is returned.
+//! found after `MAX_MOVES` moves, an error is returned.
 use super::{Solver, Solution};
 use board::Board;
 use color::Color;
