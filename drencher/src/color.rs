@@ -1,5 +1,3 @@
-extern crate term_painter;
-
 use std::fmt;
 
 
@@ -18,8 +16,8 @@ impl Color {
 
 impl fmt::Display for Color {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::term_painter::{ToStyle, Attr};
-        use self::term_painter::Color::*;
+        use term_painter::{ToStyle, Attr};
+        use term_painter::Color::*;
 
         Attr::Plain.bg(match self.tag {
             0 => Red,
