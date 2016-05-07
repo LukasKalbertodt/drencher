@@ -35,7 +35,7 @@ Options:
   --bench=<count>       In the benchmarking mode the specified player <count>
                         games are played and timing is measured. It's advised
                         to use a deterministic initial board algorithm, like
-                        'isaac-0', or to use a fairly high repetition count.
+                        'deter0', or to use a fairly high repetition count.
                         There is also no output of the board or the solution
                         in this mode.
 ";
@@ -97,7 +97,7 @@ fn play_standard_mode(init_algo: &str, size: u8, player: &str)
     println!("~~~~~~ Playing a standard game ~~~~~~");
 
     // generate board and get player
-    let board = try!(gen_board(init_algo, size));
+    let board = try!(gen_board(init_algo, size, 0));
     let player = try!(get_player(player));
 
     // let the player try to solve the board
@@ -138,9 +138,9 @@ fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
     let mut min_moves = 0;  // moves with min time
     let mut num_moves = 0;
 
-    for _ in 0..count {
+    for i in 0..count {
         // generate board and get player
-        let board = try!(gen_board(init_algo, size));
+        let board = try!(gen_board(init_algo, size, i as u32));
         let board_clone = board.clone();
         let player = try!(get_player(player));
 
@@ -205,9 +205,10 @@ fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
     Ok(())
 }
 
-fn gen_board(init_algo: &str, size: u8) -> Result<Board, ()> {
+fn gen_board(init_algo: &str, size: u8, id: u32) -> Result<Board, ()> {
     match init_algo {
         "random" => Ok(Board::random(size)),
+        "deter0" => Ok(Board::deterministic_random(size, id)),
         other => {
             println!("Intial board algorithm '{}' doesn't exist!", other);
             Err(())

@@ -4,6 +4,7 @@ use std::fmt;
 use std::collections::HashMap;
 use rand;
 use rand::distributions::{Range, IndependentSample};
+use rand::{IsaacRng, SeedableRng};
 
 
 #[derive(Clone)]
@@ -16,9 +17,27 @@ pub struct Board {
 impl Board {
     pub fn random(size: u8) -> Board {
         let mut v = Vec::with_capacity(
-            (size as usize) * (size as usize)
+            (size as usize).pow(2)
         );
         let mut rng = rand::thread_rng();
+        let range = Range::new(0, 6);
+
+        for _ in 0..size * size {
+            let n = range.ind_sample(&mut rng);
+            v.push(Color::new(n));
+        }
+
+        Board {
+            size: size,
+            cells: v,
+        }
+    }
+
+    pub fn deterministic_random(size: u8, id: u32) -> Board {
+        let mut v = Vec::with_capacity(
+            (size as usize).pow(2)
+        );
+        let mut rng = IsaacRng::from_seed(&[id, id + 42, id + 27, id + 1337]);
         let range = Range::new(0, 6);
 
         for _ in 0..size * size {
