@@ -7,3 +7,4 @@ authors = ["Lukas Kalbertodt <lukas.kalbertodt@gmail.com>"]
 rand = "0.3"
 docopt = "0.6"
 rustc-serialize = "*"
+term-painter = "0.2"
