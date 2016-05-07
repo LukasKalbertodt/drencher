@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use rand;
 use rand::distributions::{Range, IndependentSample};
 use rand::{IsaacRng, SeedableRng, Rng};
+use std::iter::repeat;
 
 
 #[derive(Clone)]
@@ -15,6 +16,14 @@ pub struct Board {
 
 
 impl Board {
+    pub fn uniform(size: u8) -> Board {
+        Board {
+            size: size,
+            cells: repeat(Color::new(0)).take((size as usize).pow(2)).collect()
+        }
+
+    }
+
     pub fn random(size: u8) -> Board {
         let mut rng = rand::thread_rng();
         Self::with_rng(size, &mut rng)

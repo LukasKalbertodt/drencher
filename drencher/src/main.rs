@@ -132,8 +132,8 @@ fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
     let mut elapsed_time = Duration::zero();
     let mut max_time = Duration::zero();
     let mut min_time = Duration::weeks(1000);   // sufficiently large
-    let mut max_board = Board::random(size);
-    let mut min_board = Board::random(size);
+    let mut max_board = Board::uniform(size);
+    let mut min_board = Board::uniform(size);
     let mut max_moves = usize::max_value();   // moves with max time
     let mut min_moves = 0;  // moves with min time
     let mut num_moves = 0;
