@@ -19,11 +19,20 @@ Usage:
   drencher (-h | --help)
   drencher --version
 
+Arguments:
+  player                The player/solver for the game.
+
 Options:
   -h --help             Show this screen.
   --version             Show version.
   --size=<size>         Side length of the board [default: 14].
-  --board=<initial>     Initial configuration of the board [default: random]
+  --board=<initial>     Initial configuration of the board [default: random].
+  --bench=<count>       In the benchmarking mode the specified player <count>
+                        games are played and timing is measured. It's advised
+                        to use a deterministic initial board algorithm, like
+                        'isaac-0'.
+                        There is also no output of the board or the solution
+                        in this mode.
 ";
 
 #[derive(Debug, RustcDecodable)]
@@ -32,6 +41,7 @@ struct Args {
     flag_version: bool,
     flag_size: u8, // TODO: nice error message when input is too big
     flag_board: String,
+    flag_bench: Option<usize>,
 }
 
 
@@ -47,33 +57,31 @@ fn main() {
         return;
     }
 
-    let board = match &args.flag_board[..] {
-        "random" => Board::random(args.flag_size),
-        other => {
-            println!("Intial board algorithm '{}' doesn't exist!", other);
-            return;
-        }
+    let player = args.arg_player.unwrap_or("human".into());
+
+    let res = if let Some(count) = args.flag_bench {
+        unimplemented!();
+    } else {
+        play_standard_mode(
+            &args.flag_board,
+            args.flag_size,
+            &player,
+        )
     };
 
-    // we can't have unsized types on the stack, the following declarations
-    // do the trick here...
-    let exact;
-    let random;
-    let human;
+    if res.is_err() {
+        std::process::exit(1);
+    }
+}
 
-    let arg_player = args.arg_player
-        .as_ref()
-        .map(|s| s.as_str())
-        .unwrap_or("human");
-    let player: &Solver = match arg_player {
-        "human" => { human = solver::Human; &human },
-        "exact" => { exact = solver::Exact; &exact },
-        "random" => { random = solver::Random; &random },
-        other => {
-            println!("Player '{}' does not exist!", other);
-            return;
-        }
-    };
+fn play_standard_mode(init_algo: &str, size: u8, player: &str)
+    -> Result<(), ()>
+{
+    println!("~~~~~~ Playing a standard game ~~~~~~");
+
+    // generate board and get player
+    let board = try!(gen_board(init_algo, size));
+    let player = try!(get_player(player));
 
     // let the player try to solve the board
     let res = player.solve(board.clone());
@@ -88,14 +96,34 @@ fn main() {
             println!("{}", board);
         }
         println!("");
-        if res.is_err() {
-            println!("Game was NOT solved! :-(");
+    }
+
+    match res {
+        Ok(_) => println!("Game was solved! :-)"),
+        Err(_) => println!("Game was NOT solved! :-("),
+    }
+
+    Ok(())
+}
+
+fn gen_board(init_algo: &str, size: u8) -> Result<Board, ()> {
+    match init_algo {
+        "random" => Ok(Board::random(size)),
+        other => {
+            println!("Intial board algorithm '{}' doesn't exist!", other);
+            Err(())
         }
-    } else {
-        // just print whether or not the game was solved
-        match res {
-            Ok(_) => println!("Game was solved! :-)"),
-            Err(_) => println!("Game was NOT solved! :-("),
+    }
+}
+
+fn get_player(name: &str) -> Result<Box<Solver>, ()> {
+    match name {
+        "human" => Ok(Box::new(solver::Human)),
+        "exact" => Ok(Box::new(solver::Exact)),
+        "random" => Ok(Box::new(solver::Random)),
+        other => {
+            println!("Player '{}' does not exist!", other);
+            Err(())
         }
     }
 }
