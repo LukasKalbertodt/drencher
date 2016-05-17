@@ -5,9 +5,11 @@ use board::Board;
 mod random;
 mod exact;
 mod human;
+mod heuristic;
 pub use self::random::Random;
 pub use self::exact::Exact;
 pub use self::human::Human;
+pub use self::heuristic::Heuristic;
 
 // typedef, thanks to Julian
 pub type Solution = Vec<Color>;
