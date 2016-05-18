@@ -59,7 +59,7 @@ impl Board {
         }
     }
 
-    fn field_coords(&self) -> (Vec<(u8, u8)>, Vec<(u8, u8)>) {
+    pub fn field_coords(&self) -> (Vec<(u8, u8)>, Vec<(u8, u8)>) {
         let mut stack = Vec::new();
         let start_color = self[(0, 0)];
         stack.push((0, 0));
