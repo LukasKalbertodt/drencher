@@ -107,6 +107,7 @@ fn play_standard_mode(init_algo: &str, size: u8, player: &str)
     if !player.prints_output() {
         // go through all the moves and print the board at every state
         let mut board = board;
+        println!("Start board:\n{}", board);
         for &c in res.as_ref().unwrap_or_else(|e| e) {
             println!("Drenching: {}", c);
             board.drench(c);
@@ -116,7 +117,7 @@ fn play_standard_mode(init_algo: &str, size: u8, player: &str)
     }
 
     match res {
-        Ok(_) => println!("Game was solved! :-)"),
+        Ok(res) => println!("Game was solved (in {} steps)! :-)", res.len()),
         Err(_) => println!("Game was NOT solved! :-("),
     }
 
@@ -221,6 +222,7 @@ fn get_player(name: &str) -> Result<Box<Solver>, ()> {
         "human" => Ok(Box::new(solver::Human)),
         "exact" => Ok(Box::new(solver::Exact)),
         "random" => Ok(Box::new(solver::Random)),
+        "heuristic" => Ok(Box::new(solver::Heuristic)),
         other => {
             println!("Player '{}' does not exist!", other);
             Err(())
