@@ -4,55 +4,51 @@ use board::Board;
 use time::Duration;
 use term_painter::{ToStyle, Color};
 
+struct RunOutcome {
+    board: Board,
+    elapsed_time: Duration,
+    moves: usize,
+}
+
 pub fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
     -> Result<(), ()>
 {
     println!("Benchmarking player '{}' ({} iterations)", player, count);
 
-    // time needed for solving the board & number of moves
-    let mut elapsed_time = Duration::zero();
-    let mut max_time = Duration::zero();
-    let mut min_time = Duration::weeks(1000);   // sufficiently large
-    let mut max_board = Board::uniform(size);
-    let mut min_board = Board::uniform(size);
-    let mut max_moves = usize::max_value();   // moves with max time
-    let mut min_moves = 0;  // moves with min time
-    let mut num_moves = 0;
+    let player = try!(get_player(player));
+    let mut benchmark = Vec::with_capacity(count);
 
     for i in 0..count {
         // generate board and get player
         let board = try!(gen_board(init_algo, size, i as u32));
-        let board_clone = board.clone();
-        let player = try!(get_player(player));
 
         // let the player try to solve the board
         let mut res = None;
-        let iter_time = Duration::span(|| {
+        let mut run_outcome = RunOutcome {
+            board: board.clone(),
+            elapsed_time: Duration::zero(),
+            moves: 0,
+        };
+
+        // collect solve outcome
+        run_outcome.elapsed_time = Duration::span(|| {
             res = Some(player.solve(board));
         });
-
         let res = res.unwrap().unwrap_or_else(|e| e);
+        run_outcome.moves = res.len();
 
-        // update times
-        // TODO: remove with += once it's stable
-        elapsed_time = elapsed_time + iter_time;
-
-        if iter_time > max_time {
-            max_time = iter_time;
-            max_board = board_clone.clone();
-            max_moves = res.len();
-        }
-
-        if iter_time < min_time {
-            min_time = iter_time;
-            min_board = board_clone;
-            min_moves = res.len();
-        }
-
-        // we can unwrap here: the above closure is always executed
-        num_moves += res.len();
+        benchmark.push(run_outcome);
     }
 
+    // calc output
+    let elapsed_time = benchmark.iter().fold(Duration::zero(), |sum, elem|
+        sum + elem.elapsed_time
+    );
+    let min_run = benchmark.iter().min_by_key(|elem| elem.elapsed_time).unwrap();
+    let max_run = benchmark.iter().max_by_key(|elem| elem.elapsed_time).unwrap();
+    let num_moves = benchmark.iter().fold(0, |sum, elem|
+        sum + elem.moves
+    );
 
     // --- output of the results
     println!(
@@ -63,8 +59,8 @@ pub fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
         "+++ Time elapsed: {} (avg: {}, min: {}, max: {})",
         Color::BrightYellow.paint(format_duration(elapsed_time)),
         Color::BrightBlue.paint(format_duration(elapsed_time / (count as i32))),
-        Color::BrightBlue.paint(format_duration(min_time)),
-        Color::BrightBlue.paint(format_duration(max_time)),
+        Color::BrightBlue.paint(format_duration(min_run.elapsed_time)),
+        Color::BrightBlue.paint(format_duration(max_run.elapsed_time)),
     );
     println!(
         "+++ Number of moves: {} ({} on average)",
@@ -74,13 +70,13 @@ pub fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
 
     println!(
         "Initial board that took the most time (solved with {} moves):\n{}",
-        Color::BrightBlue.paint(max_moves),
-        max_board,
+        Color::BrightBlue.paint(max_run.moves),
+        max_run.board,
     );
     println!(
         "Initial board that took the least time (solved with {} moves):\n{}",
-        Color::BrightBlue.paint(min_moves),
-        min_board,
+        Color::BrightBlue.paint(min_run.moves),
+        min_run.board,
     );
 
     Ok(())
