@@ -19,7 +19,7 @@ pub fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
     let player = try!(get_player(player));
     let mut benchmark = Vec::with_capacity(count);
 
-    (0..count).into_par_iter().map(|i| {
+    (0..count).into_par_iter().weight_max().map(|i| {
 
         // generate board and get player
         let board = match gen_board(init_algo, size, i as u32) {
