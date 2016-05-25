@@ -3,6 +3,7 @@ use solver::Solver;
 use board::Board;
 use time::Duration;
 use term_painter::{ToStyle, Color};
+use rayon::prelude::*;
 
 struct RunOutcome {
     board: Board,
@@ -16,7 +17,9 @@ pub fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
     println!("Benchmarking player '{}' ({} iterations)", player, count);
 
     let player = try!(get_player(player));
-    let benchmark: Vec<_> = (0..count).filter_map(|i| {
+    let mut benchmark = Vec::with_capacity(count);
+
+    (0..count).into_par_iter().map(|i| {
 
         // generate board and get player
         let board = match gen_board(init_algo, size, i as u32) {
@@ -40,7 +43,9 @@ pub fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
         run_outcome.moves = res.len();
 
         Some(run_outcome)
-    }).collect();
+    }).collect_into(&mut benchmark);
+
+    let benchmark: Vec<_> = benchmark.into_iter().filter_map(|e| e).collect();
 
     // calc output
     let elapsed_time = benchmark.iter().fold(Duration::zero(), |sum, elem|

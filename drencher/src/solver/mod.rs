@@ -15,7 +15,7 @@ pub use self::heuristic::Heuristic;
 pub type Solution = Vec<Color>;
 
 /// Something that can solve our game from an initial board.
-pub trait Solver {
+pub trait Solver: Sync {
     /// Given a board, the solver has to return a list of moves. Those moves
     /// either win the game (`Ok(..)`) or don't (`Err(..)`), in which case the
     /// solver wasn't able to find a winning solution. The `Err` value can
