@@ -16,11 +16,13 @@ pub fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
     println!("Benchmarking player '{}' ({} iterations)", player, count);
 
     let player = try!(get_player(player));
-    let mut benchmark = Vec::with_capacity(count);
+    let benchmark: Vec<_> = (0..count).filter_map(|i| {
 
-    for i in 0..count {
         // generate board and get player
-        let board = try!(gen_board(init_algo, size, i as u32));
+        let board = match gen_board(init_algo, size, i as u32) {
+            Ok(board) => board,
+            Err(_) => return None,
+        };
 
         // let the player try to solve the board
         let mut res = None;
@@ -37,8 +39,8 @@ pub fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
         let res = res.unwrap().unwrap_or_else(|e| e);
         run_outcome.moves = res.len();
 
-        benchmark.push(run_outcome);
-    }
+        Some(run_outcome)
+    }).collect();
 
     // calc output
     let elapsed_time = benchmark.iter().fold(Duration::zero(), |sum, elem|
