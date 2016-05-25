@@ -40,7 +40,7 @@ impl Board {
         );
         let range = Range::new(0, 6);
 
-        for _ in 0..size * size {
+        for _ in 0..(size as u16) * (size as u16) {
             let n = range.ind_sample(&mut rng);
             v.push(Color::new(n));
         }
