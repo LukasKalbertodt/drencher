@@ -26,10 +26,7 @@ pub fn run_benchmark(
 
     let player = try!(get_player(player));
     let mut benchmark = Vec::with_capacity(count);
-
-    if progress {
-        let pb = Mutex::new(ProgressBar::new(count as u64));
-    }
+    let pb = Mutex::new(ProgressBar::new(count as u64));
 
     let weight = if threading { f64::INFINITY } else { 0f64 };
     (0..count).into_par_iter().weight(weight).map(|i| {
