@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use color::Color;
 use std::ops;
 use std::fmt;
