@@ -4,8 +4,8 @@
 //! and adds this color to the solution vector. The user is presented
 //! with the new board state.
 
-use color::Color;
 use board::Board;
+use color::Color;
 use super::{Solver, Solution};
 // use std::io::{self, Write};
 use glium::{self, glutin, DisplayBuild, Surface};
@@ -13,7 +13,7 @@ use glium::glutin::{ElementState, Event, VirtualKeyCode};
 
 // constants that modify the appearance
 const MARGIN: f32 = 0.1;
-const CELL_DISTANCE: f32 = 0.05;
+const CELL_DISTANCE: f32 = 0.0;
 
 
 /// Type definition for the solver.
@@ -23,16 +23,19 @@ impl Solver for Human {
     // implement this to avoid printing all board states again
     fn prints_output(&self) -> bool { true }
 
-    fn solve(&self, board: Board) -> Result<Solution, Solution> {
+    fn solve(&self, mut board: Board) -> Result<Solution, Solution> {
         let display = glutin::WindowBuilder::new()
             .with_title("Drencher")
             .with_vsync()
+            .with_srgb(Some(false))
+            .with_pixel_format(24, 8)
             .build_glium()
             .expect("creating OpenGL window failed!");
 
         // calculate positions
         let (width, height) = display.get_framebuffer_dimensions();
-        let (xmin, ymin, xmax, ymax) = get_positions(width, height);
+        let (mut xmin, mut ymin, mut xmax, mut ymax) =
+            get_positions(width, height);
         println!("{:?}", (xmin, xmin, xmax, ymax));
 
 
@@ -74,7 +77,9 @@ impl Solver for Human {
             uniform vec3 field_color;
 
             void main() {
-                color = vec4(field_color, 1.0);
+                // perform srgb conversion (don't know why I need to 0.o)
+                vec3 tmp = field_color;
+                color = vec4(pow(tmp.x, 2.4), pow(tmp.y, 2.4), pow(tmp.z, 2.4), 1.0);
             }
         "#;
 
@@ -84,6 +89,8 @@ impl Solver for Human {
             fragment_shader_src,
             None
         ).unwrap();
+
+        let mut solution = Solution::new();
 
         'a: loop {
             let mut target = display.draw();
@@ -105,7 +112,7 @@ impl Solver for Human {
                             ],
                             pos: [
                                 xmin + (x as f32) * x_distance,
-                                ymin + (y as f32) * y_distance,
+                                ymax - ((y + 1) as f32) * y_distance,
                             ],
                             field_color: board[(x, y)].as_rgb(),
                         },
@@ -119,9 +126,39 @@ impl Solver for Human {
             for ev in display.poll_events() {
                 match ev {
                     Event::Closed |
-                    Event::KeyboardInput(
-                        ElementState::Pressed, _, Some(VirtualKeyCode::Escape)
-                    ) => break 'a,
+                    Event::KeyboardInput(ElementState::Pressed, _, Some(VirtualKeyCode::Escape))
+                        => break 'a,
+                    Event::KeyboardInput(ElementState::Pressed, _, Some(VirtualKeyCode::Return))
+                        if board.is_drenched() => return Ok(solution),
+                    Event::KeyboardInput(ElementState::Pressed, _, Some(vkc))
+                        if !board.is_drenched() =>
+                    {
+                        let color = match vkc {
+                            VirtualKeyCode::Key1 => Some(0),
+                            VirtualKeyCode::Key2 => Some(1),
+                            VirtualKeyCode::Key3 => Some(2),
+                            VirtualKeyCode::Key4 => Some(3),
+                            VirtualKeyCode::Key5 => Some(4),
+                            VirtualKeyCode::Key6 => Some(5),
+                            _ => None,
+                        }.map(|n| Color::new(n));
+
+                        if let Some(color) = color {
+                            if solution.last() != Some(&color) {
+                                solution.push(color);
+                                board.drench(color);
+                            }
+                        }
+                    }
+                    Event::Resized(width, height) => {
+                        let (nxmin, nymin, nxmax, nymax) =
+                            get_positions(width, height);
+                        xmin = nxmin;
+                        ymin = nymin;
+                        xmax = nxmax;
+                        ymax = nymax;
+                    },
+
                     _ => ()
                 }
             }
@@ -147,7 +184,7 @@ impl Solver for Human {
 
         // // apparently we didn't solve the board, but we don't have any more
         // // inputs
-        Err(vec![])
+        Err(solution)
     }
 }
 
