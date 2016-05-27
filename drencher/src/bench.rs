@@ -4,6 +4,8 @@ use board::Board;
 use time::Duration;
 use term_painter::{ToStyle, Color};
 use rayon::prelude::*;
+use pbr::ProgressBar;
+use std::sync::Mutex;
 
 struct RunOutcome {
     board: Board,
@@ -18,6 +20,7 @@ pub fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
 
     let player = try!(get_player(player));
     let mut benchmark = Vec::with_capacity(count);
+    let pb = Mutex::new(ProgressBar::new(count as u64));
 
     (0..count).into_par_iter().weight_max().map(|i| {
 
@@ -41,6 +44,8 @@ pub fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
         });
         let res = res.unwrap().unwrap_or_else(|e| e);
         run_outcome.moves = res.len();
+
+        pb.lock().unwrap().inc();
 
         Some(run_outcome)
     }).collect_into(&mut benchmark);
