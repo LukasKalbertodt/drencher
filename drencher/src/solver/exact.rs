@@ -59,6 +59,8 @@ impl Solver for Exact {
         // a few counter to output useful information
         let mut count = 0;
 
+        let mut new_states = Vec::new();
+
         // BFS until a solution is found
         loop {
             trace!(
@@ -69,7 +71,8 @@ impl Solver for Exact {
             count += 1;
 
             // in this vector, we will collect all nodes of the next layer
-            let mut new_states = Vec::new();
+            new_states.clear();
+            new_states.reserve(states.len() * 6);
 
             // count how many times we ignored a subtree because it's move's
             // color wasn't adjacent
@@ -85,14 +88,7 @@ impl Solver for Exact {
                 // calculate the adjacent colors from the current board
                 let adjacent_colors = state.board.adjacent_colors();
 
-                for color in 0..6 {
-                    let color = Color::new(color);
-
-                    // maybe this color isn't even adjacent
-                    if !adjacent_colors.contains_key(&color) {
-                        adj_break += 1;
-                        continue;
-                    }
+                for color in adjacent_colors {
 
                     // create the new state and push as a child
                     let mut next = state.clone();
@@ -102,13 +98,9 @@ impl Solver for Exact {
                     new_states.push(next);
                 }
             }
-            trace!(
-                "we broke {}/{} times ",
-                adj_break,
-                states.len() * 6
-            );
 
             // proceed with the next layer
+            // states = new_states;
             mem::swap(&mut new_states, &mut states);
         }
     }

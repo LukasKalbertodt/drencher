@@ -103,15 +103,21 @@ impl Board {
         self.cells.iter().all(|&c| c == self[(0, 0)])
     }
 
-    pub fn adjacent_colors(&self) -> HashMap<Color, usize> {
-        let mut map = HashMap::new();
+    pub fn adjacent_colors(&self) -> Vec<Color> {
+        let mut colors = [0; 6];
 
         for (x, y) in self.field_coords().1 {
             let color = self[(x, y)];
-            *map.entry(color).or_insert(0) += 1;
+            colors[color.tag as usize] += 1;
         }
 
-        map
+        colors.iter().enumerate().filter_map(|(i, &count)| {
+            if count > 0 {
+                Some(Color::new(i as u8))
+            } else {
+                None
+            }
+        }).collect()
     }
 }
 
