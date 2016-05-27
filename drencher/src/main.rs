@@ -43,6 +43,8 @@ Options:
                         'deter0', or to use a fairly high repetition count.
                         There is also no output of the board or the solution
                         in this mode.
+  --no-progress         Hide progress bar.
+  --no-threads          Disable threading
 ";
 
 #[derive(Debug, RustcDecodable)]
@@ -52,10 +54,15 @@ struct Args {
     flag_size: u8, // TODO: nice error message when input is too big
     flag_board: String,
     flag_bench: Option<usize>,
+    flag_no_progress: bool,
+    flag_no_threads: bool,
 }
 
 
 fn main() {
+    // register logger
+    env_logger::init().unwrap();
+
     // read and parse CLI-args, exit if any error occured
     let args: Args = Docopt::new(USAGE)
                             .and_then(|d| d.decode())
@@ -82,6 +89,8 @@ fn main() {
             args.flag_size,
             &player,
             count,
+            !args.flag_no_progress,
+            !args.flag_no_threads,
         )
     } else {
         play_standard_mode(
