@@ -5,6 +5,8 @@ extern crate term_painter;
 extern crate time;
 extern crate rayon;
 extern crate pbr;
+#[macro_use] extern crate log;
+extern crate env_logger;
 
 mod color;
 mod board;

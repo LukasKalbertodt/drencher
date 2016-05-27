@@ -61,7 +61,7 @@ impl Solver for Exact {
 
         // BFS until a solution is found
         loop {
-            println!(
+            trace!(
                 "iteration {} (theory: {})",
                 count,
                 6usize.pow(count)
@@ -102,7 +102,7 @@ impl Solver for Exact {
                     new_states.push(next);
                 }
             }
-            println!(
+            trace!(
                 "we broke {}/{} times ",
                 adj_break,
                 states.len() * 6
