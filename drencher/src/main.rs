@@ -4,6 +4,7 @@ extern crate rustc_serialize;
 extern crate term_painter;
 extern crate time;
 extern crate rayon;
+extern crate pbr;
 
 mod color;
 mod board;
