@@ -8,8 +8,13 @@ use color::Color;
 use board::Board;
 use super::{Solver, Solution};
 // use std::io::{self, Write};
-use glium::{self, DisplayBuild, Surface};
+use glium::{self, glutin, DisplayBuild, Surface};
 use glium::glutin::{ElementState, Event, VirtualKeyCode};
+
+// constants that modify the appearance
+const MARGIN: f32 = 0.1;
+const CELL_DISTANCE: f32 = 0.05;
+
 
 /// Type definition for the solver.
 pub struct Human;
@@ -18,8 +23,18 @@ impl Solver for Human {
     // implement this to avoid printing all board states again
     fn prints_output(&self) -> bool { true }
 
-    fn solve(&self, _: Board) -> Result<Solution, Solution> {
-        let display = glium::glutin::WindowBuilder::new().build_glium().unwrap();
+    fn solve(&self, board: Board) -> Result<Solution, Solution> {
+        let display = glutin::WindowBuilder::new()
+            .with_title("Drencher")
+            .with_vsync()
+            .build_glium()
+            .expect("creating OpenGL window failed!");
+
+        // calculate positions
+        let (width, height) = display.get_framebuffer_dimensions();
+        let (xmin, ymin, xmax, ymax) = get_positions(width, height);
+        println!("{:?}", (xmin, xmin, xmax, ymax));
+
 
         #[derive(Copy, Clone)]
         struct Vertex {
@@ -28,21 +43,26 @@ impl Solver for Human {
 
         implement_vertex!(Vertex, position);
 
-        let vertex1 = Vertex { position: [-0.5, -0.5] };
-        let vertex2 = Vertex { position: [ 0.0,  0.5] };
-        let vertex3 = Vertex { position: [ 0.5, -0.25] };
-        let shape = vec![vertex1, vertex2, vertex3];
+        let shape = vec![
+            Vertex { position: [0.0, 0.0] },
+            Vertex { position: [0.0, 1.0] },
+            Vertex { position: [1.0, 0.0] },
+            Vertex { position: [1.0, 1.0] },
+        ];
 
         let vertex_buffer = glium::VertexBuffer::new(&display, &shape).unwrap();
-        let indices = glium::index::NoIndices(glium::index::PrimitiveType::TrianglesList);
+        let indices = glium::index::NoIndices(glium::index::PrimitiveType::TriangleStrip);
 
         let vertex_shader_src = r#"
             #version 140
 
             in vec2 position;
 
+            uniform vec2 pos;
+            uniform vec2 scale;
+
             void main() {
-                gl_Position = vec4(position, 0.0, 1.0);
+                gl_Position = vec4(position * scale + pos, 0.0, 1.0);
             }
         "#;
 
@@ -51,8 +71,10 @@ impl Solver for Human {
 
             out vec4 color;
 
+            uniform vec3 field_color;
+
             void main() {
-                color = vec4(1.0, 0.0, 0.0, 1.0);
+                color = vec4(field_color, 1.0);
             }
         "#;
 
@@ -65,9 +87,33 @@ impl Solver for Human {
 
         'a: loop {
             let mut target = display.draw();
-            target.clear_color(0.0, 0.0, 1.0, 1.0);
-            target.draw(&vertex_buffer, &indices, &program, &glium::uniforms::EmptyUniforms,
-                        &Default::default()).unwrap();
+            target.clear_color(0.02, 0.02, 0.05, 1.0);
+
+            let x_distance = (xmax - xmin) / (board.size() as f32);
+            let y_distance = (ymax - ymin) / (board.size() as f32);
+            for x in 0..board.size() {
+                for y in 0..board.size() {
+
+                    target.draw(
+                        &vertex_buffer,
+                        &indices,
+                        &program,
+                        &uniform! {
+                            scale: [
+                                x_distance * (1.0 - CELL_DISTANCE),
+                                y_distance * (1.0 - CELL_DISTANCE)
+                            ],
+                            pos: [
+                                xmin + (x as f32) * x_distance,
+                                ymin + (y as f32) * y_distance,
+                            ],
+                            field_color: board[(x, y)].as_rgb(),
+                        },
+                        &Default::default()
+                    ).unwrap();
+                }
+            }
+
             target.finish().unwrap();
 
             for ev in display.poll_events() {
@@ -103,6 +149,26 @@ impl Solver for Human {
         // // inputs
         Err(vec![])
     }
+}
+
+fn get_positions(width: u32, height: u32) -> (f32, f32, f32, f32) {
+    let xmargin = if width > height {
+        ((width - height) as f32) / (width as f32)
+    } else {
+        0.0
+    };
+    let ymargin = if height > width {
+        ((height - width) as f32) / (height as f32)
+    } else {
+        0.0
+    };
+
+    let xmin = (-1.0 + xmargin) * (1.0 - MARGIN);
+    let xmax = ( 1.0 - xmargin) * (1.0 - MARGIN);
+    let ymin = (-1.0 + ymargin) * (1.0 - MARGIN);
+    let ymax = ( 1.0 - ymargin) * (1.0 - MARGIN);
+
+    (xmin, ymin, xmax, ymax)
 }
 
 // fn prompt_color() -> Option<Color> {
