@@ -6,6 +6,7 @@ use term_painter::{ToStyle, Color};
 use rayon::prelude::*;
 use pbr::ProgressBar;
 use std::sync::Mutex;
+use std::f64;
 
 struct RunOutcome {
     board: Board,
@@ -13,16 +14,22 @@ struct RunOutcome {
     moves: usize,
 }
 
-pub fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
-    -> Result<(), ()>
-{
+pub fn run_benchmark(
+    init_algo: &str,
+    size: u8,
+    player: &str,
+    count: usize,
+    progress: bool,
+    threading: bool,
+) -> Result<(), ()> {
     println!("Benchmarking player '{}' ({} iterations)", player, count);
 
     let player = try!(get_player(player));
     let mut benchmark = Vec::with_capacity(count);
     let pb = Mutex::new(ProgressBar::new(count as u64));
 
-    (0..count).into_par_iter().weight_max().map(|i| {
+    let weight = if threading { f64::INFINITY } else { 0f64 };
+    (0..count).into_par_iter().weight(weight).map(|i| {
 
         // generate board and get player
         let board = match gen_board(init_algo, size, i as u32) {
@@ -45,7 +52,9 @@ pub fn run_benchmark(init_algo: &str, size: u8, player: &str, count: usize)
         let res = res.unwrap().unwrap_or_else(|e| e);
         run_outcome.moves = res.len();
 
-        pb.lock().unwrap().inc();
+        if progress {
+            pb.lock().unwrap().inc();
+        }
 
         Some(run_outcome)
     }).collect_into(&mut benchmark);
