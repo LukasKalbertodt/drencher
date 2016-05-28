@@ -74,10 +74,6 @@ impl Solver for Exact {
             new_states.clear();
             new_states.reserve(states.len() * 6);
 
-            // count how many times we ignored a subtree because it's move's
-            // color wasn't adjacent
-            let mut adj_break = 0;
-
             // for each node in the current layer: add children
             for state in &states {
                 // calculate the adjacent colors from the current board

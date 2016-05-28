@@ -3,7 +3,6 @@
 use color::Color;
 use std::ops;
 use std::fmt;
-use std::collections::HashMap;
 use rand;
 use rand::distributions::{Range, IndependentSample};
 use rand::{IsaacRng, SeedableRng, Rng};
