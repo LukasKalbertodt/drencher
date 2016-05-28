@@ -11,7 +11,9 @@ use rand::distributions::{Range, IndependentSample};
 /// Type definition for the solver.
 pub struct Random;
 
-const MAX_MOVES: usize = 1_000;
+// judging from the statistics 400 random moves solve size=100 boards in
+// ~50% of all cases
+const MAX_MOVES: usize = 400;
 
 impl Solver for Random {
     fn solve(&self, mut b: Board) -> Result<Solution, Solution> {
