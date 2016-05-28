@@ -74,26 +74,21 @@ impl Solver for Exact {
             new_states.clear();
             new_states.reserve(states.len() * 6);
 
-            // count how many times we ignored a subtree because it's move's
-            // color wasn't adjacent
-            let mut adj_break = 0;
-
             // for each node in the current layer: add children
             for state in &states {
-                // if we found a solution, just return
-                if state.board.is_drenched() {
-                    return Ok(state.moves.clone());
-                }
-
                 // calculate the adjacent colors from the current board
                 let adjacent_colors = state.board.adjacent_colors();
 
                 for color in adjacent_colors {
-
                     // create the new state and push as a child
                     let mut next = state.clone();
                     next.moves.push(color);
                     next.board.drench(color);
+
+                    // if we found a solution, just return
+                    if next.board.is_drenched() {
+                        return Ok(next.moves.clone());
+                    }
 
                     new_states.push(next);
                 }
