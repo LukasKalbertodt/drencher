@@ -7,6 +7,7 @@ extern crate rayon;
 extern crate pbr;
 #[macro_use] extern crate log;
 extern crate env_logger;
+#[macro_use] extern crate glium;
 
 mod color;
 mod board;

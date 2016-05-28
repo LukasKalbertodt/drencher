@@ -26,6 +26,10 @@ impl Board {
 
     }
 
+    pub fn size(&self) -> u8 {
+        self.size
+    }
+
     pub fn random(size: u8) -> Board {
         let mut rng = rand::thread_rng();
         Self::with_rng(size, &mut rng)
