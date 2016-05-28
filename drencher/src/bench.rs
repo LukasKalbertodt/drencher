@@ -36,7 +36,7 @@ pub fn run_benchmark(
         (0..count).into_par_iter().weight(weight).map(|i| {
 
             // generate board and get player
-            let board = match gen_board(init_algo, size, i as u32) {
+            let board = match gen_board(init_algo, size, i as u64) {
                 Ok(board) => board,
                 Err(_) => return None,
             };
