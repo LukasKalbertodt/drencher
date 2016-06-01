@@ -156,6 +156,7 @@ fn get_player(name: &str) -> Result<Box<Solver>, ()> {
         "exact" => Ok(Box::new(solver::Exact)),
         "random" => Ok(Box::new(solver::Random)),
         "heuristic" => Ok(Box::new(solver::Heuristic)),
+        "modcount" => Ok(Box::new(solver::ModCount)),
         other => {
             println!("Player '{}' does not exist!", other);
             Err(())

@@ -6,10 +6,13 @@ mod random;
 mod exact;
 mod human;
 mod heuristic;
+mod mod_count;
+
 pub use self::random::Random;
 pub use self::exact::Exact;
 pub use self::human::Human;
 pub use self::heuristic::Heuristic;
+pub use self::mod_count::ModCount;
 
 // typedef, thanks to Julian
 pub type Solution = Vec<Color>;
