@@ -5,19 +5,21 @@ use color::Color;
 pub struct ModCount;
 
 impl Solver for ModCount {
-    fn solve(&self, mut b: Board) -> Result<Solution, Solution> {
-        let mut solution = Solution::new();
-        let mut index = 0u8;
+    fn solve(&self, b: Board) -> Result<Solution, Solution> {
 
-        while !b.is_drenched() {
-            let color = Color::new(index);
-            solution.push(color);
-            b.drench(color);
-
-            index += 1;
-            index %= 6;
-        }
-
-        Ok(solution)
+        Ok(
+            (0..)
+            .map(|i| Color::new(i % 6))
+            .scan(b, |b, color| {
+                let drenched = b.is_drenched();
+                if !drenched {
+                    b.drench(color);
+                }
+                Some((drenched, color))
+            })
+            .take_while(|&(is_drenched, _)| !is_drenched)
+            .map(|(_, color)| color)
+            .collect()
+        )
     }
 }
