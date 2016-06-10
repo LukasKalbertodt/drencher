@@ -115,6 +115,15 @@ pub fn run_benchmark(
         );
     }
 
+    // all runs failed -> return
+    if count_before - benchmark.len() == count {
+        println!(
+            "{} all runs returned a wrong result - aborting!",
+            Color::Red.paint("!!! Error:"),
+        );
+        return Ok(());
+    }
+
     // calc output
     let elapsed_time = benchmark.iter().fold(Duration::zero(), |sum, elem|
         sum + elem.elapsed_time
