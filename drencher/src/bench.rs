@@ -31,45 +31,48 @@ pub fn run_benchmark(
     let no_solution_count = AtomicUsize::new(0);
 
     let weight = if threading { f64::INFINITY } else { 0f64 };
-    (0..count).into_par_iter().weight(weight).map(|i| {
 
-        // generate board and get player
-        let board = match gen_board(init_algo, size, i as u32) {
-            Ok(board) => board,
-            Err(_) => return None,
-        };
+    let real_time = Duration::span(|| {
+        (0..count).into_par_iter().weight(weight).map(|i| {
 
-        // let the player try to solve the board
-        let mut res = None;
-        let mut run_outcome = RunOutcome {
-            board: board.clone(),
-            elapsed_time: Duration::zero(),
-            moves: Vec::new(),  // will be overridden later
-        };
+            // generate board and get player
+            let board = match gen_board(init_algo, size, i as u32) {
+                Ok(board) => board,
+                Err(_) => return None,
+            };
 
-        // collect solve outcome
-        run_outcome.elapsed_time = Duration::span(|| {
-            res = Some(player.solve(board));
-        });
+            // let the player try to solve the board
+            let mut res = None;
+            let mut run_outcome = RunOutcome {
+                board: board.clone(),
+                elapsed_time: Duration::zero(),
+                moves: Vec::new(),  // will be overridden later
+            };
 
-        // increment progress bar
-        if progress {
-            pb.lock().unwrap().inc();
-        }
+            // collect solve outcome
+            run_outcome.elapsed_time = Duration::span(|| {
+                res = Some(player.solve(board));
+            });
 
-        // if the solver didn't find a solution, we will increment the
-        // no_solution_count and ignore this run
-        run_outcome.moves = match res.unwrap() {
-            Ok(res) => res,
-            Err(_) => {
-                // I don't understand memory orderings...
-                no_solution_count.fetch_add(1, Ordering::SeqCst);
-                return None;
+            // increment progress bar
+            if progress {
+                pb.lock().unwrap().inc();
             }
-        };
 
-        Some(run_outcome)
-    }).collect_into(&mut benchmark);
+            // if the solver didn't find a solution, we will increment the
+            // no_solution_count and ignore this run
+            run_outcome.moves = match res.unwrap() {
+                Ok(res) => res,
+                Err(_) => {
+                    // I don't understand memory orderings...
+                    no_solution_count.fetch_add(1, Ordering::SeqCst);
+                    return None;
+                }
+            };
+
+            Some(run_outcome)
+        }).collect_into(&mut benchmark);
+    });
 
     // from now on: no multithreading anymore
     let no_solution_count = no_solution_count.load(Ordering::SeqCst);
@@ -112,6 +115,15 @@ pub fn run_benchmark(
         );
     }
 
+    // all runs failed -> return
+    if count_before - benchmark.len() == count {
+        println!(
+            "{} all runs returned a wrong result - aborting!",
+            Color::Red.paint("!!! Error:"),
+        );
+        return Ok(());
+    }
+
     // calc output
     let elapsed_time = benchmark.iter().fold(Duration::zero(), |sum, elem|
         sum + elem.elapsed_time
@@ -128,9 +140,11 @@ pub fn run_benchmark(
         "\n{}",
         Color::BrightWhite.bold().paint("----- Benchmark done ------------")
     );
+
     println!(
-        "+++ Time elapsed: {} (avg: {}, min: {}, max: {})",
+        "+++ Time elapsed: CPU: {}, Real: {} (avg: {}, min: {}, max: {})",
         Color::BrightYellow.paint(format_duration(elapsed_time)),
+        Color::BrightYellow.paint(format_duration(real_time)),
         Color::BrightBlue.paint(format_duration(elapsed_time / (valid_count as i32))),
         Color::BrightBlue.paint(format_duration(min_run.elapsed_time)),
         Color::BrightBlue.paint(format_duration(max_run.elapsed_time)),
