@@ -30,12 +30,16 @@
 //!
 use board::Board;
 use color::Color;
-use std::mem;
 use super::{Solver, Solution};
+use std::collections::HashMap;
+use std::iter::repeat;
+use std::ops;
 
 /// Type definition of exact solver. See module documentation for more
 /// information.
 pub struct Exact;
+
+type Pos = (u8, u8);
 
 /// Used to represent one node in the game tree. See module documentation for
 /// more information.
@@ -46,57 +50,196 @@ struct State {
 }
 
 impl Solver for Exact {
-    fn solve(&self, b: Board) -> Result<Solution, Solution> {
-        // root of the tree: no moves yes, initial board
-        let initial = State {
-            moves: vec![],
-            board: b,
-        };
+    fn solve(&self, _b: Board) -> Result<Solution, Solution> {
+        // TODO: this is just debugging
+        let b = Board::deterministic_random(3, 2);
+        println!("{}", b);
 
-        // the `states` vector will hold the current layer of the tree
-        let mut states = vec![initial];
+        println!("{:#?}", generate_graph(&b));
 
-        // a few counter to output useful information
-        let mut count = 0;
+        Ok(vec![])
+    }
+}
 
-        let mut new_states = Vec::new();
+/// Generates the initial undirected graph representing the board. Every island
+/// of multiple cells of the same color are represented by one node. Each node
+/// contains the id's of all it's neighbors.
+fn generate_graph(b: &Board) -> Graph {
+    // We map every cell to the corresponding node to check if we already
+    // processed that cell
+    let mut g = Graph::default();
+    let mut map = HashMap::new();
 
-        // BFS until a solution is found
-        loop {
-            trace!(
-                "iteration {} (theory: {})",
-                count,
-                6usize.pow(count)
+    // It doesn't matter in which order we progress the cells
+    for x in 0..b.size() {
+        for y in 0..b.size() {
+            // If we already created a node for this cell, we skip it
+            if map.contains_key(&(x, y)) {
+                continue;
+            }
+
+            // We need to get all cells of the current island as well as the
+            // adjacent cells. Note that these are only the directly adjacent
+            // cells!
+            let (island, adjacent) = get_island(b, (x, y));
+
+            debug!(
+                "({}, {}) {} => {:?} || {:?}",
+                x, y, b[(x, y)], island, adjacent
             );
-            count += 1;
 
-            // in this vector, we will collect all nodes of the next layer
-            new_states.clear();
-            new_states.reserve(states.len() * 6);
+            // Add a new node with the color of the current cell and create an
+            // alias for the index of the inserted node.
+            let new_id = g.nodes.len();
+            g.nodes.push(Node {
+                adjacent: vec![],
+                color: b[(x, y)],
+            });
 
-            // for each node in the current layer: add children
-            for state in &states {
-                // calculate the adjacent colors from the current board
-                let adjacent_colors = state.board.adjacent_colors();
+            // We need to add all cells of the current island to the cell-node
+            // map to mark them progressed.
+            for pos in island {
+                map.insert(pos, new_id);
+            }
 
-                for color in adjacent_colors {
-                    // create the new state and push as a child
-                    let mut next = state.clone();
-                    next.moves.push(color);
-                    next.board.drench(color);
+            // Here we add the edges. Note that we only add edges to nodes
+            // that already exist. This is perfectly fine because:
+            // - we add an edge to every existing node now
+            // - every node that will be created afterwards will add exactly
+            //   one edge from that node to the current node
+            for pos in adjacent {
+                if let Some(&id) = map.get(&pos) {
+                    g.nodes[id].adjacent.push(new_id);
+                    g.nodes[new_id].adjacent.push(id);
+                }
+            }
+        }
+    }
 
-                    // if we found a solution, just return
-                    if next.board.is_drenched() {
-                        return Ok(next.moves.clone());
+    g
+}
+
+/// Returns all cells of the island around the given position as well as the
+/// adjacent cells. Note that it only returns directly adjacent cells! This
+/// means that if a bigger island is adjacent, only the cells directly touching
+/// "our" island are returned. This is fine for our use-case.
+fn get_island(b: &Board, (x, y): Pos) -> (Vec<Pos>, Vec<Pos>) {
+    // Starting from the given position, we successively add neighbors to the
+    // queue, which we haven't added yet. This is a depth first search in the
+    // current implementation, but the order of visits doesn't matter.
+    let mut to_visit = vec![(x, y)];
+    let mut visited = CellMap::new(b.size(), false);
+    visited[(x, y)] = true;
+
+    // Vec's to collect the result.
+    let mut island = Vec::new();
+    let mut adjacent = Vec::new();
+
+    // Alias for the size and the color of the initial position.
+    let size = b.size();
+    let init_color = b[(x, y)];
+
+    // As long as we still have to visit a cell ...
+    while let Some((x, y)) = to_visit.pop() {
+        // If the current cell belongs to our island ...
+        if b[(x, y)] == init_color {
+            // Add to result vector
+            island.push((x, y));
+
+            // Add all neighbors that we haven't visited yet
+            macro_rules! add_neighbor {
+                ($pos:expr, $cond:expr) => {
+                    if $cond && !visited[$pos] {
+                        to_visit.push($pos);
+                        visited[$pos] = true;
                     }
-
-                    new_states.push(next);
                 }
             }
 
-            // proceed with the next layer
-            // states = new_states;
-            mem::swap(&mut new_states, &mut states);
+            add_neighbor!((x - 1, y), x > 0);
+            add_neighbor!((x + 1, y), x < size - 1);
+            add_neighbor!((x, y - 1), y > 0);
+            add_neighbor!((x, y + 1), y < size - 1);
+        } else {
+            // ... otherwise it was added by a cell in the island, hence it's
+            // a directly adjacent cell.
+            adjacent.push((x, y));
         }
+    }
+
+    (island, adjacent)
+}
+
+#[derive(Default, Clone, Debug)]
+pub struct Graph {
+    pub nodes: Vec<Node>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Node {
+    pub adjacent: Vec<usize>,
+    pub color: Color,
+}
+
+struct CellMap<T> {
+    size: u8,
+    cells: Vec<T>,
+}
+
+impl<T> CellMap<T> {
+    pub fn new(size: u8, obj: T) -> Self
+        where T: Clone
+    {
+        CellMap {
+            size: size,
+            cells: repeat(obj).take((size as usize).pow(2)).collect(),
+        }
+    }
+
+    pub fn default(size: u8) -> Self
+        where T: Default
+    {
+        let cells = repeat(())
+            .map(|_| T::default())
+            .take((size as usize).pow(2))
+            .collect();
+        CellMap {
+            size: size,
+            cells: cells,
+        }
+    }
+}
+
+
+impl<T> ops::Index<(u8, u8)> for CellMap<T> {
+    type Output = T;
+    fn index(&self, (x, y): (u8, u8)) -> &Self::Output {
+        if x > self.size || y > self.size {
+            panic!(
+                "x ({}) or y ({}) greater than size ({})",
+                x, y, self.size
+            );
+        }
+
+        &self.cells[
+            (y as usize) * (self.size as usize)
+                + (x as usize)
+        ]
+    }
+}
+
+impl<T> ops::IndexMut<(u8, u8)> for CellMap<T> {
+    fn index_mut(&mut self, (x, y): (u8, u8)) -> &mut Self::Output {
+        if x > self.size || y > self.size {
+            panic!(
+                "x ({}) or y ({}) greater than size ({})",
+                x, y, self.size
+            );
+        }
+
+        &mut self.cells[
+            (y as usize) * (self.size as usize)
+                + (x as usize)
+        ]
     }
 }
