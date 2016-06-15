@@ -28,11 +28,13 @@
 //!
 //!
 //!
+// TODO: Edit documentation above
 use board::Board;
 use color::Color;
 use super::{Solver, Solution};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::iter::repeat;
+use std::fmt;
 use std::ops;
 
 /// Type definition of exact solver. See module documentation for more
@@ -46,18 +48,91 @@ type Pos = (u8, u8);
 #[derive(Clone)]
 struct State {
     pub moves: Vec<Color>,
-    pub board: Board,
+    pub curr_node: usize,
+    pub owned: Vec<usize>,
+}
+
+impl fmt::Debug for State {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        try!(write!(f, "moves: ["));
+        for m in &self.moves {
+            try!(write!(f, "{}", m));
+        }
+        write!(f, "] @ node #{}", self.curr_node)
+    }
 }
 
 impl Solver for Exact {
-    fn solve(&self, _b: Board) -> Result<Solution, Solution> {
-        // TODO: this is just debugging
-        let b = Board::deterministic_random(3, 2);
-        println!("{}", b);
+    fn solve(&self, b: Board) -> Result<Solution, Solution> {
+        let mut g = generate_graph(&b);
+        debug!("initial graph has {} nodes", g.nodes.len());
 
-        println!("{:#?}", generate_graph(&b));
+        let mut states = vec![State {
+            moves: vec![],
+            curr_node: 0,
+            owned: vec![0],
+        }];
 
-        Ok(vec![])
+        loop {
+            let mut new_states = Vec::new();
+
+            for state in &states {
+
+                for color in 0..6 {
+                    let color = Color::new(color);
+
+
+                    let (new_adj, new_owned) = {
+                        let n = &g.nodes[state.curr_node];
+                        if n.adjacent.iter().all(|&id| g.nodes[id].color != color) {
+                            continue;
+                        }
+
+                        let mut new_adj: HashSet<_> = n.adjacent.iter().cloned().collect();
+                        let mut new_owned = state.owned.clone();
+
+                        for &neighbor_id in &n.adjacent {
+                            let neighbor = &g.nodes[neighbor_id];
+
+                            if neighbor.color == color {
+                                new_adj.extend(neighbor.adjacent.iter().cloned());
+                                new_adj.remove(&neighbor_id);
+                                new_owned.push(neighbor_id);
+                            }
+                        }
+
+                        for owned in &state.owned {
+                            new_adj.remove(owned);
+                        }
+                        (new_adj, new_owned)
+                    };
+
+                    let mut new_moves = state.moves.clone();
+                    new_moves.push(color);
+
+                    if new_adj.is_empty() {
+                        return Ok(new_moves);
+                    }
+
+                    g.nodes.push(Node {
+                        color: color,
+                        adjacent: new_adj.iter().cloned().collect(),
+                    });
+
+
+                    new_states.push(State {
+                        moves: new_moves,
+                        curr_node: g.nodes.len() - 1,
+                        owned: new_owned,
+                    })
+                }
+            }
+
+            debug!("{:#?}", new_states);
+            debug!("{:#?}", g);
+
+            states = new_states;
+        }
     }
 }
 
@@ -170,16 +245,30 @@ fn get_island(b: &Board, (x, y): Pos) -> (Vec<Pos>, Vec<Pos>) {
     (island, adjacent)
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Default, Clone)]
 pub struct Graph {
     pub nodes: Vec<Node>,
 }
 
-#[derive(Clone, Debug)]
+impl fmt::Debug for Graph {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        try!(write!(f, "Graph ({} nodes) ", self.nodes.len()));
+        f.debug_map().entries(self.nodes.iter().enumerate()).finish()
+    }
+}
+
+#[derive(Clone)]
 pub struct Node {
     pub adjacent: Vec<usize>,
     pub color: Color,
 }
+
+impl fmt::Debug for Node {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "<{}> --> {:?}", self.color, self.adjacent)
+    }
+}
+
 
 struct CellMap<T> {
     size: u8,
