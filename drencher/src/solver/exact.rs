@@ -32,11 +32,13 @@
 use board::Board;
 use color::Color;
 use super::{Solver, Solution};
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, BTreeSet};
 use std::iter::repeat;
 use std::fmt;
 use std::ops;
 use smallvec::{SmallVec, SmallVec8};
+use std::mem;
+use bit_set::BitSet;
 
 /// Type definition of exact solver. See module documentation for more
 /// information.
@@ -50,8 +52,8 @@ type Pos = (u8, u8);
 #[derive(Clone)]
 struct State {
     pub moves: SmallVec<[Color; 16]>,
-    pub adjacent: Vec<GraphIndex>,
-    pub owned: Vec<GraphIndex>,
+    pub adjacent: BitSet,
+    pub owned: BitSet,
 }
 
 impl fmt::Debug for State {
@@ -72,12 +74,15 @@ impl Solver for Exact {
 
         let mut states = vec![State {
             moves: SmallVec::new(),
-            adjacent: g[0].adjacent.to_vec(),
-            owned: vec![0],
+            adjacent: g[0].adjacent.clone(),
+            owned: BitSet::new(),
         }];
+        states[0].owned.insert(0);
+        let mut new_states = Vec::new();
 
         loop {
-            let mut new_states = Vec::with_capacity(5 * states.len());
+            new_states.clear();
+            new_states.reserve(5 * states.len());
 
             for state in &states {
                 let mut adj_colors = SmallVec::<[_; 6]>::new();
@@ -87,11 +92,11 @@ impl Solver for Exact {
 
                     let num_adj = state.adjacent
                         .iter()
-                        .filter(|&&node_id| g[node_id].color == color)
+                        .filter(|&node_id| g[node_id as GraphIndex].color == color)
                         .count();
 
                     let num_remaining = (0..num_island)
-                        .filter(|node_id| !state.owned.contains(node_id))
+                        .filter(|&node_id| !state.owned.contains(node_id.into()))
                         .filter(|&node_id| g[node_id].color == color)
                         .count();
 
@@ -107,22 +112,20 @@ impl Solver for Exact {
                 for &color in &*adj_colors {
 
                     let (new_adj, new_owned) = {
-                        let mut new_adj: HashSet<_> = state.adjacent.iter().cloned().collect();
+                        let mut new_adj = state.adjacent.clone();
                         let mut new_owned = state.owned.clone();
 
-                        for &neighbor_id in &state.adjacent {
-                            let neighbor = &g[neighbor_id];
+                        for neighbor_id in &state.adjacent {
+                            let neighbor = &g[neighbor_id as GraphIndex];
 
                             if neighbor.color == color {
-                                new_adj.extend(neighbor.adjacent.iter().cloned());
-                                new_adj.remove(&neighbor_id);
-                                new_owned.push(neighbor_id);
+                                new_adj.union_with(&neighbor.adjacent);
+                                new_adj.remove(neighbor_id);
+                                new_owned.insert(neighbor_id);
                             }
                         }
 
-                        for owned in &state.owned {
-                            new_adj.remove(owned);
-                        }
+                        new_adj.difference_with(&state.owned);
                         (new_adj, new_owned)
                     };
 
@@ -135,16 +138,17 @@ impl Solver for Exact {
 
                     new_states.push(State {
                         moves: new_moves,
-                        adjacent: new_adj.iter().cloned().collect(),
+                        adjacent: new_adj,
                         owned: new_owned,
                     })
                 }
             }
 
-            debug!("{:#?}", new_states);
-            debug!("{:#?}", g);
+            // debug!("{:#?}", new_states);
+            // debug!("{:#?}", g);
 
-            states = new_states;
+            // states = new_states;
+            mem::swap(&mut states, &mut new_states);
         }
     }
 }
@@ -180,7 +184,7 @@ fn generate_graph(b: &Board) -> Graph {
             // alias for the index of the inserted node.
             let new_id = g.len();
             g.nodes.push(Node {
-                adjacent: SmallVec::new(),
+                adjacent: BitSet::new(),
                 color: b[(x, y)],
             });
 
@@ -197,12 +201,14 @@ fn generate_graph(b: &Board) -> Graph {
             //   one edge from that node to the current node
             for pos in adjacent {
                 if let Some(&id) = map.get(&pos) {
-                    g[id].adjacent.push(new_id);
-                    g[new_id].adjacent.push(id);
+                    g[id].adjacent.insert(new_id as usize);
+                    g[new_id].adjacent.insert(id as usize);
                 }
             }
         }
     }
+
+    g.nodes.shrink_to_fit();
 
     g
 }
@@ -291,7 +297,7 @@ impl ops::IndexMut<GraphIndex> for Graph {
 
 #[derive(Clone)]
 pub struct Node {
-    pub adjacent: SmallVec<[GraphIndex; 4]>,
+    pub adjacent: BitSet,
     pub color: Color,
 }
 
