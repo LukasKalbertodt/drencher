@@ -15,6 +15,7 @@ mod color;
 mod board;
 mod solver;
 mod bench;
+mod util;
 
 use solver::Solver;
 use board::Board;

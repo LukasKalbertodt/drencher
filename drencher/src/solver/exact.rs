@@ -39,6 +39,7 @@ use std::ops;
 use smallvec::{SmallVec, SmallVec8};
 use std::mem;
 use bit_set::BitSet;
+use util::ColorSet;
 
 /// Type definition of exact solver. See module documentation for more
 /// information.
@@ -85,7 +86,7 @@ impl Solver for Exact {
             new_states.reserve(5 * states.len());
 
             for state in &states {
-                let mut adj_colors = SmallVec::<[_; 6]>::new();
+                let mut adj_colors = ColorSet::new();
 
                 for color in 0..6 {
                     let color = Color::new(color);
@@ -102,14 +103,14 @@ impl Solver for Exact {
 
                     if num_adj == num_remaining && num_adj > 0 {
                         adj_colors.clear();
-                        adj_colors.push(color);
+                        adj_colors.set(color);
                         break;
                     } else if num_adj > 0 {
-                        adj_colors.push(color);
+                        adj_colors.set(color);
                     }
                 }
 
-                for &color in &*adj_colors {
+                for color in &adj_colors {
 
                     let (new_adj, new_owned) = {
                         let mut new_adj = state.adjacent.clone();
