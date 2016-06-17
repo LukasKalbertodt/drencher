@@ -36,19 +36,20 @@ use std::collections::{HashMap, HashSet};
 use std::iter::repeat;
 use std::fmt;
 use std::ops;
+use smallvec::{SmallVec, SmallVec8};
 
 /// Type definition of exact solver. See module documentation for more
 /// information.
 pub struct Exact;
 
-pub type GraphIndex = u32;
+pub type GraphIndex = u8;
 type Pos = (u8, u8);
 
 /// Used to represent one node in the game tree. See module documentation for
 /// more information.
 #[derive(Clone)]
 struct State {
-    pub moves: Vec<Color>,
+    pub moves: SmallVec<[Color; 16]>,
     pub adjacent: Vec<GraphIndex>,
     pub owned: Vec<GraphIndex>,
 }
@@ -56,7 +57,7 @@ struct State {
 impl fmt::Debug for State {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(write!(f, "moves: ["));
-        for m in &self.moves {
+        for m in &*self.moves {
             try!(write!(f, "{}", m));
         }
         write!(f, "] @ adj {:?}", self.adjacent)
@@ -70,16 +71,16 @@ impl Solver for Exact {
         debug!("initial graph has {} nodes", g.len());
 
         let mut states = vec![State {
-            moves: vec![],
-            adjacent: g[0].adjacent.clone(),
+            moves: SmallVec::new(),
+            adjacent: g[0].adjacent.to_vec(),
             owned: vec![0],
         }];
 
         loop {
-            let mut new_states = Vec::new();
+            let mut new_states = Vec::with_capacity(5 * states.len());
 
             for state in &states {
-                let mut adj_colors = Vec::with_capacity(6);
+                let mut adj_colors = SmallVec::<[_; 6]>::new();
 
                 for color in 0..6 {
                     let color = Color::new(color);
@@ -95,14 +96,15 @@ impl Solver for Exact {
                         .count();
 
                     if num_adj == num_remaining && num_adj > 0 {
-                        adj_colors = vec![color];
+                        adj_colors.clear();
+                        adj_colors.push(color);
                         break;
                     } else if num_adj > 0 {
                         adj_colors.push(color);
                     }
                 }
 
-                for color in adj_colors {
+                for &color in &*adj_colors {
 
                     let (new_adj, new_owned) = {
                         let mut new_adj: HashSet<_> = state.adjacent.iter().cloned().collect();
@@ -128,7 +130,7 @@ impl Solver for Exact {
                     new_moves.push(color);
 
                     if new_adj.is_empty() {
-                        return Ok(new_moves);
+                        return Ok(new_moves.to_vec());
                     }
 
                     new_states.push(State {
@@ -178,7 +180,7 @@ fn generate_graph(b: &Board) -> Graph {
             // alias for the index of the inserted node.
             let new_id = g.len();
             g.nodes.push(Node {
-                adjacent: vec![],
+                adjacent: SmallVec::new(),
                 color: b[(x, y)],
             });
 
@@ -289,7 +291,7 @@ impl ops::IndexMut<GraphIndex> for Graph {
 
 #[derive(Clone)]
 pub struct Node {
-    pub adjacent: Vec<GraphIndex>,
+    pub adjacent: SmallVec<[GraphIndex; 4]>,
     pub color: Color,
 }
 

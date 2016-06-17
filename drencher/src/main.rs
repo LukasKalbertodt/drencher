@@ -8,6 +8,7 @@ extern crate pbr;
 #[macro_use] extern crate log;
 extern crate env_logger;
 #[macro_use] extern crate glium;
+extern crate smallvec;
 
 mod color;
 mod board;
