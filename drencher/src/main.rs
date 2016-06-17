@@ -11,11 +11,12 @@ extern crate env_logger;
 extern crate smallvec;
 extern crate bit_set;
 
+#[macro_use]
+mod util;
 mod color;
 mod board;
 mod solver;
 mod bench;
-mod util;
 
 use solver::Solver;
 use board::Board;

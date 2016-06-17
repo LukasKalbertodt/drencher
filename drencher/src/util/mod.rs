@@ -1,4 +1,5 @@
 use color::Color;
+use bit_set::BitSet;
 
 pub struct ColorSet {
     data: u8,
@@ -53,4 +54,25 @@ impl<'a> Iterator for ColorSetIter<'a> {
             None
         }
     }
+}
+
+pub fn union(a: &BitSet, b: &BitSet) -> BitSet {
+    let mut out = a.clone();
+    out.union_with(b);
+    out
+}
+pub fn intersect(a: &BitSet, b: &BitSet) -> BitSet {
+    let mut out = a.clone();
+    out.intersect_with(b);
+    out
+}
+
+macro_rules! bset {
+    ($($val:expr),*) => {{
+        let mut out = BitSet::new();
+        $(
+            out.insert($val);
+        )*
+        out
+    }}
 }

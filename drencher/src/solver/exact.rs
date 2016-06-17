@@ -39,7 +39,7 @@ use std::ops;
 use smallvec::SmallVec;
 use std::mem;
 use bit_set::BitSet;
-use util::ColorSet;
+use util::{ColorSet, union, intersect};
 
 /// Type definition of exact solver. See module documentation for more
 /// information.
@@ -69,47 +69,60 @@ impl fmt::Debug for State {
 
 impl Solver for Exact {
     fn solve(&self, b: Board) -> Result<Solution, Solution> {
+        // Generate the graph from the board
         let g = generate_graph(&b);
         debug!("initial graph has {} nodes", g.len());
 
-        let num_island = g.len();
-        let all_nodes_set: BitSet = (0..num_island.into()).collect();
-        let mut color_nodes_set = [
-            BitSet::new(), BitSet::new(), BitSet::new(),
-            BitSet::new(), BitSet::new(), BitSet::new()
-        ];
-        for color in 0..6 {
-            let nodes = g.nodes.iter()
-                .enumerate()
-                .filter(|&(_, n)| n.color == Color::new(color))
-                .map(|(idx, _)| idx);
-            color_nodes_set[color as usize].extend(nodes);
-        }
-        let color_nodes_set = color_nodes_set;
+        // Generate sets which contain all nodes of a specific color
+        let nodes_with_color = {
+            // fixed size array (yes, we need to inialize it like this -.-)
+            let mut out = [
+                BitSet::new(), BitSet::new(), BitSet::new(),
+                BitSet::new(), BitSet::new(), BitSet::new()
+            ];
 
+            // fill the sets
+            for color in 0..6 {
+                let nodes = g.nodes.iter()
+                    .enumerate()
+                    .filter(|&(_, n)| n.color == Color::new(color))
+                    .map(|(idx, _)| idx);
+                out[color as usize].extend(nodes);
+            }
+            out
+        };
+
+        // The initial state: no moves yet, the same adjacent nodes as the
+        // first node of the graph (top left) and only the first node owned.
         let mut states = vec![State {
             moves: SmallVec::new(),
             adjacent: g[0].adjacent.clone(),
-            owned: BitSet::new(),
+            owned: bset!{0},
         }];
-        states[0].owned.insert(0);
+
+        // We will collect the new level of the game tree in here. We keep it
+        // outside the loop to reduce number of allocations.
         let mut new_states = Vec::new();
 
         loop {
+            // Since we are reusing the old vector, we have to clear it
             new_states.clear();
+            // We will need some capacity... TODO: we should test this
             new_states.reserve(5 * states.len());
 
+            // For each node in the game tree, we create new children in the
+            // next level.
             for state in &states {
+                // First we find out what colors we are adjacent to
                 let mut adj_colors = ColorSet::new();
-
                 for color in 0..6 {
                     let color = Color::new(color);
 
                     let num_adj = state.adjacent
-                        .intersection(&color_nodes_set[color.tag as usize])
+                        .intersection(&nodes_with_color[color.tag as usize])
                         .count();
 
-                    let num_remaining = color_nodes_set[color.tag as usize]
+                    let num_remaining = nodes_with_color[color.tag as usize]
                         .difference(&state.owned)
                         .count();
 
@@ -122,22 +135,13 @@ impl Solver for Exact {
                     }
                 }
 
+                // For each color we are adjacent to, we have to create a new
+                // child in the game tree
                 for color in &adj_colors {
-                    fn union(a: &BitSet, b: &BitSet) -> BitSet {
-                        let mut out = a.clone();
-                        out.union_with(b);
-                        out
-                    }
-                    fn intersect(a: &BitSet, b: &BitSet) -> BitSet {
-                        let mut out = a.clone();
-                        out.intersect_with(b);
-                        out
-                    }
-
                     // In `active_adj` we store all adjacent nodes that have
                     // the color `color`.
                     let active_adj =
-                        intersect(&state.adjacent, &color_nodes_set[color.tag as usize]);
+                        intersect(&state.adjacent, &nodes_with_color[color.tag as usize]);
 
                     let mut new_adj = state.adjacent.clone();
                     let new_owned = union(&state.owned, &active_adj);
