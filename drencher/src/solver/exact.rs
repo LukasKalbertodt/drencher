@@ -32,11 +32,11 @@
 use board::Board;
 use color::Color;
 use super::{Solver, Solution};
-use std::collections::{HashMap, HashSet, BTreeSet};
+use std::collections::{HashMap};
 use std::iter::repeat;
 use std::fmt;
 use std::ops;
-use smallvec::{SmallVec, SmallVec8};
+use smallvec::SmallVec;
 use std::mem;
 use bit_set::BitSet;
 use util::ColorSet;
@@ -70,8 +70,22 @@ impl fmt::Debug for State {
 impl Solver for Exact {
     fn solve(&self, b: Board) -> Result<Solution, Solution> {
         let g = generate_graph(&b);
-        let num_island = g.len();
         debug!("initial graph has {} nodes", g.len());
+
+        let num_island = g.len();
+        let all_nodes_set: BitSet = (0..num_island.into()).collect();
+        let mut color_nodes_set = [
+            BitSet::new(), BitSet::new(), BitSet::new(),
+            BitSet::new(), BitSet::new(), BitSet::new()
+        ];
+        for color in 0..6 {
+            let nodes = g.nodes.iter()
+                .enumerate()
+                .filter(|&(_, n)| n.color == Color::new(color))
+                .map(|(idx, _)| idx);
+            color_nodes_set[color as usize].extend(nodes);
+        }
+        let color_nodes_set = color_nodes_set;
 
         let mut states = vec![State {
             moves: SmallVec::new(),
@@ -92,13 +106,11 @@ impl Solver for Exact {
                     let color = Color::new(color);
 
                     let num_adj = state.adjacent
-                        .iter()
-                        .filter(|&node_id| g[node_id as GraphIndex].color == color)
+                        .intersection(&color_nodes_set[color.tag as usize])
                         .count();
 
-                    let num_remaining = (0..num_island)
-                        .filter(|&node_id| !state.owned.contains(node_id.into()))
-                        .filter(|&node_id| g[node_id].color == color)
+                    let num_remaining = color_nodes_set[color.tag as usize]
+                        .difference(&state.owned)
                         .count();
 
                     if num_adj == num_remaining && num_adj > 0 {
@@ -111,24 +123,30 @@ impl Solver for Exact {
                 }
 
                 for color in &adj_colors {
+                    fn union(a: &BitSet, b: &BitSet) -> BitSet {
+                        let mut out = a.clone();
+                        out.union_with(b);
+                        out
+                    }
+                    fn intersect(a: &BitSet, b: &BitSet) -> BitSet {
+                        let mut out = a.clone();
+                        out.intersect_with(b);
+                        out
+                    }
 
-                    let (new_adj, new_owned) = {
-                        let mut new_adj = state.adjacent.clone();
-                        let mut new_owned = state.owned.clone();
+                    // In `active_adj` we store all adjacent nodes that have
+                    // the color `color`.
+                    let active_adj =
+                        intersect(&state.adjacent, &color_nodes_set[color.tag as usize]);
 
-                        for neighbor_id in &state.adjacent {
-                            let neighbor = &g[neighbor_id as GraphIndex];
+                    let mut new_adj = state.adjacent.clone();
+                    let new_owned = union(&state.owned, &active_adj);
 
-                            if neighbor.color == color {
-                                new_adj.union_with(&neighbor.adjacent);
-                                new_adj.remove(neighbor_id);
-                                new_owned.insert(neighbor_id);
-                            }
-                        }
+                    for neighbor_id in &active_adj {
+                        new_adj.union_with(&g[neighbor_id as GraphIndex].adjacent);
+                    }
 
-                        new_adj.difference_with(&state.owned);
-                        (new_adj, new_owned)
-                    };
+                    new_adj.difference_with(&new_owned);
 
                     let mut new_moves = state.moves.clone();
                     new_moves.push(color);
