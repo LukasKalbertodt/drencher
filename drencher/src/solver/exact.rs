@@ -108,7 +108,25 @@ impl Solver for Exact {
             // Since we are reusing the old vector, we have to clear it
             new_states.clear();
             // We will need some capacity... TODO: we should test this
-            new_states.reserve(5 * states.len());
+            // new_states.reserve(5 * states.len());
+
+            // check the relationship between states
+            // let mut not_needed = vec![false; states.len()];
+            let mut not_needed = vec![];
+            for (i, s1) in states.iter().enumerate().rev() {
+                for s2 in &states[..i] {
+                    if s1.owned.is_subset(&s2.owned) {
+                        not_needed.push(i);
+                        break;
+                    }
+                }
+            }
+            // println!("{} from {} not needed", not_needed.len(), states.len());
+
+            for i in not_needed {
+                states.swap_remove(i);
+            }
+            states.shrink_to_fit();
 
             // For each node in the game tree, we create new children in the
             // next level.
