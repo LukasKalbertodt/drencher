@@ -1,5 +1,6 @@
 use color::Color;
-use bit_set::BitSet;
+use std::iter::repeat;
+use std::ops;
 
 pub struct ColorSet {
     data: u8,
@@ -56,23 +57,67 @@ impl<'a> Iterator for ColorSetIter<'a> {
     }
 }
 
-pub fn union(a: &BitSet, b: &BitSet) -> BitSet {
-    let mut out = a.clone();
-    out.union_with(b);
-    out
-}
-pub fn intersect(a: &BitSet, b: &BitSet) -> BitSet {
-    let mut out = a.clone();
-    out.intersect_with(b);
-    out
+
+pub struct CellMap<T> {
+    size: u8,
+    cells: Vec<T>,
 }
 
-macro_rules! bset {
-    ($($val:expr),*) => {{
-        let mut out = BitSet::new();
-        $(
-            out.insert($val);
-        )*
-        out
-    }}
+#[allow(dead_code)]
+impl<T> CellMap<T> {
+    pub fn new(size: u8, obj: T) -> Self
+        where T: Clone
+    {
+        CellMap {
+            size: size,
+            cells: repeat(obj).take((size as usize).pow(2)).collect(),
+        }
+    }
+
+    pub fn default(size: u8) -> Self
+        where T: Default
+    {
+        let cells = repeat(())
+            .map(|_| T::default())
+            .take((size as usize).pow(2))
+            .collect();
+        CellMap {
+            size: size,
+            cells: cells,
+        }
+    }
+}
+
+
+impl<T> ops::Index<(u8, u8)> for CellMap<T> {
+    type Output = T;
+    fn index(&self, (x, y): (u8, u8)) -> &Self::Output {
+        if x > self.size || y > self.size {
+            panic!(
+                "x ({}) or y ({}) greater than size ({})",
+                x, y, self.size
+            );
+        }
+
+        &self.cells[
+            (y as usize) * (self.size as usize)
+                + (x as usize)
+        ]
+    }
+}
+
+impl<T> ops::IndexMut<(u8, u8)> for CellMap<T> {
+    fn index_mut(&mut self, (x, y): (u8, u8)) -> &mut Self::Output {
+        if x > self.size || y > self.size {
+            panic!(
+                "x ({}) or y ({}) greater than size ({})",
+                x, y, self.size
+            );
+        }
+
+        &mut self.cells[
+            (y as usize) * (self.size as usize)
+                + (x as usize)
+        ]
+    }
 }

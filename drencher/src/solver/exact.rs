@@ -1,60 +1,39 @@
 //! Exact Solver
 //!
 //! This solver always finds an optimal solution (with as few moves as
-//! possible). Currently, this solver is very slow and can't really handle
-//! instances of size 8 and above.
-//!
-//! ## Algorithm
-//!
-//! The idea is simple: the solver traverses the whole game tree in order to
-//! find a solution. Traversing is done with breadth-first-search which means
-//! that the first solution we find is optimal. The theoretical game tree has
-//! 'm^c' nodes, where 'm' is the number of moves of one optimal solution and
-//! 'c' is the number of colors. One can easily imagine that trees of bigger
-//! instances are impossible to search through. Therefore we have to implement
-//! some techniques to avoid searching the *whole* tree.
-//!
-//! Currently only one optimization is used: when branching deeper into the
-//! tree, we ensure that the color of the move corresponding to the current
-//! branch, is even a neighbor of the field of cells. If not, the move is
-//! useless and the subtree can be ignored. Obviously.
-//!
-//! ## Representing the tree
-//!
-//! Right now, the tree is not really represented as a tree. Since we're
-//! progressing the tree in BFS, we only need to save the last/current layer.
-//! Each node in this layer is saved as a `State` which saves a board state and
-//! all moves leading to this state.
+//! possible). **NOTE**: this solver only works for boards of size 16 or less.
+//! This is due to some micro-optimization, which for example assumes that
+//! the whole board (every cell) can be index with one byte. This means that
+//! only 256 (16^2) cells are supported.
 //!
 //!
 //!
-// TODO: Edit documentation above
+// TODO: Complete documentation above
 use board::Board;
 use color::Color;
 use super::{Solver, Solution};
-use std::collections::{HashMap};
-use std::iter::repeat;
+use std::collections::HashMap;
 use std::fmt;
 use std::ops;
 use smallvec::SmallVec;
 use std::mem;
-use bit_set::BitSet;
-use util::{ColorSet, union, intersect};
+use util::{CellMap, ColorSet};
 
 /// Type definition of exact solver. See module documentation for more
 /// information.
 pub struct Exact;
 
-pub type GraphIndex = u8;
+type GraphIndex = u8;
 type Pos = (u8, u8);
+type Set = InlineBitSet;
 
 /// Used to represent one node in the game tree. See module documentation for
 /// more information.
 #[derive(Clone)]
 struct State {
     pub moves: SmallVec<[Color; 16]>,
-    pub adjacent: BitSet,
-    pub owned: BitSet,
+    pub adjacent: Set,
+    pub owned: Set,
 }
 
 impl fmt::Debug for State {
@@ -75,20 +54,20 @@ impl Solver for Exact {
 
         // Generate sets which contain all nodes of a specific color
         let nodes_with_color = {
-            // fixed size array (yes, we need to inialize it like this -.-)
-            let mut out = [
-                BitSet::new(), BitSet::new(), BitSet::new(),
-                BitSet::new(), BitSet::new(), BitSet::new()
-            ];
+            // fixed size array
+            let mut out = [Set::empty(); 6];
 
             // fill the sets
-            for color in 0..6 {
-                let nodes = g.nodes.iter()
-                    .enumerate()
-                    .filter(|&(_, n)| n.color == Color::new(color))
-                    .map(|(idx, _)| idx);
-                out[color as usize].extend(nodes);
+            for node_id in 0..g.len() {
+                out[g[node_id].color.tag as usize].insert(node_id);
             }
+            // for color in 0..6 {
+            //     let nodes = g.nodes.iter()
+            //         .enumerate()
+            //         .filter(|&(_, n)| n.color == Color::new(color))
+            //         .map(|(idx, _)| idx);
+            //     out[color as usize].extend(nodes);
+            // }
             out
         };
 
@@ -97,7 +76,7 @@ impl Solver for Exact {
         let mut states = vec![State {
             moves: SmallVec::new(),
             adjacent: g[0].adjacent.clone(),
-            owned: bset!{0},
+            owned: Set::with_only_first(),
         }];
 
         // We will collect the new level of the game tree in here. We keep it
@@ -111,22 +90,32 @@ impl Solver for Exact {
             // new_states.reserve(5 * states.len());
 
             // check the relationship between states
-            // let mut not_needed = vec![false; states.len()];
-            let mut not_needed = vec![];
-            for (i, s1) in states.iter().enumerate().rev() {
-                for s2 in &states[..i] {
-                    if s1.owned.is_subset(&s2.owned) {
-                        not_needed.push(i);
-                        break;
-                    }
+            // let before = ::time::now();
+            // println!("---------");
+            // print!("From {} -> ", states.len());
+            let mut j = 0;
+
+            states.sort_by_key(|state| g.len() - state.owned.len());
+            // let after_sort = ::time::now();
+            for i in 0..states.len() {
+                // print!("i => ");
+                // invariants:
+                // items v[0..j] will be kept
+                // items v[j..i] will be removed
+                if (0..j).all(|a| !states[i].owned.is_subset_of(&states[a].owned)) {
+                    // println!("swapping! (j = {} now)", j + 1);
+                    states.swap(i, j);
+                    j += 1;
                 }
             }
-            // println!("{} from {} not needed", not_needed.len(), states.len());
+            states.truncate(j);
+            // println!(
+            //     "{} (in {}, sort: {})",
+            //     states.len(),
+            //     ::time::now() - before,
+            //     after_sort - before
+            // );
 
-            for i in not_needed {
-                states.swap_remove(i);
-            }
-            states.shrink_to_fit();
 
             // For each node in the game tree, we create new children in the
             // next level.
@@ -136,13 +125,19 @@ impl Solver for Exact {
                 for color in 0..6 {
                     let color = Color::new(color);
 
-                    let num_adj = state.adjacent
-                        .intersection(&nodes_with_color[color.tag as usize])
-                        .count();
+                    // let num_adj = state.adjacent
+                    //     .intersection(&nodes_with_color[color.tag as usize])
+                    //     .count();
 
-                    let num_remaining = nodes_with_color[color.tag as usize]
-                        .difference(&state.owned)
-                        .count();
+                    let num_adj = Set::count_common_elements(
+                        &state.adjacent,
+                        &nodes_with_color[color.tag as usize],
+                    );
+
+                    let num_remaining = Set::count_elements_only_in_first(
+                        &nodes_with_color[color.tag as usize],
+                        &state.owned,
+                    );
 
                     if num_adj == num_remaining && num_adj > 0 {
                         adj_colors.clear();
@@ -158,17 +153,19 @@ impl Solver for Exact {
                 for color in &adj_colors {
                     // In `active_adj` we store all adjacent nodes that have
                     // the color `color`.
-                    let active_adj =
-                        intersect(&state.adjacent, &nodes_with_color[color.tag as usize]);
+                    let active_adj = Set::intersection(
+                        &state.adjacent,
+                        &nodes_with_color[color.tag as usize]
+                    );
 
                     let mut new_adj = state.adjacent.clone();
-                    let new_owned = union(&state.owned, &active_adj);
+                    let new_owned = Set::union(&state.owned, &active_adj);
 
                     for neighbor_id in &active_adj {
                         new_adj.union_with(&g[neighbor_id as GraphIndex].adjacent);
                     }
 
-                    new_adj.difference_with(&new_owned);
+                    new_adj.without(&new_owned);
 
                     let mut new_moves = state.moves.clone();
                     new_moves.push(color);
@@ -177,11 +174,18 @@ impl Solver for Exact {
                         return Ok(new_moves.to_vec());
                     }
 
-                    new_states.push(State {
-                        moves: new_moves,
-                        adjacent: new_adj,
-                        owned: new_owned,
-                    })
+                    // // check if the current move is strictly worse than another
+                    // // move
+                    // let not_needed = new_states.iter().any(|state: &State|
+                    //     new_owned.is_subset(&state.owned)
+                    // );
+                    if true {
+                        new_states.push(State {
+                            moves: new_moves,
+                            adjacent: new_adj,
+                            owned: new_owned,
+                        })
+                    }
                 }
             }
 
@@ -225,7 +229,7 @@ fn generate_graph(b: &Board) -> Graph {
             // alias for the index of the inserted node.
             let new_id = g.len();
             g.nodes.push(Node {
-                adjacent: BitSet::new(),
+                adjacent: Set::empty(),
                 color: b[(x, y)],
             });
 
@@ -242,8 +246,8 @@ fn generate_graph(b: &Board) -> Graph {
             //   one edge from that node to the current node
             for pos in adjacent {
                 if let Some(&id) = map.get(&pos) {
-                    g[id].adjacent.insert(new_id as usize);
-                    g[new_id].adjacent.insert(id as usize);
+                    g[id].adjacent.insert(new_id);
+                    g[new_id].adjacent.insert(id);
                 }
             }
         }
@@ -306,7 +310,7 @@ fn get_island(b: &Board, (x, y): Pos) -> (Vec<Pos>, Vec<Pos>) {
 }
 
 #[derive(Default, Clone)]
-pub struct Graph {
+struct Graph {
     pub nodes: Vec<Node>,
 }
 
@@ -337,8 +341,8 @@ impl ops::IndexMut<GraphIndex> for Graph {
 }
 
 #[derive(Clone)]
-pub struct Node {
-    pub adjacent: BitSet,
+struct Node {
+    pub adjacent: Set,
     pub color: Color,
 }
 
@@ -348,66 +352,150 @@ impl fmt::Debug for Node {
     }
 }
 
-
-struct CellMap<T> {
-    size: u8,
-    cells: Vec<T>,
+/// This type represents a set and mirrors the functionality of `BitSet`. The
+/// difference is that the set data of `InlineBitSet` is stored inline (on
+/// the stack). This is supposed to decrease cache misses and memory usage.
+///
+/// This type is specialized for the task at hand: it can't grow and only
+/// offers functionality important for the solver. It also imposes one main
+/// limitation to the solver: we can only handle integer keys up to 255. This
+/// means that we can't represent more than 256 nodes in our graph and thus are
+/// limited to boards of the size 16 or less.
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct InlineBitSet {
+    data: [u64; 4],
 }
 
-impl<T> CellMap<T> {
-    pub fn new(size: u8, obj: T) -> Self
-        where T: Clone
-    {
-        CellMap {
-            size: size,
-            cells: repeat(obj).take((size as usize).pow(2)).collect(),
+impl InlineBitSet {
+    pub fn empty() -> Self {
+        InlineBitSet {
+            data: [0, 0, 0, 0],
         }
     }
 
-    pub fn default(size: u8) -> Self
-        where T: Default
-    {
-        let cells = repeat(())
-            .map(|_| T::default())
-            .take((size as usize).pow(2))
-            .collect();
-        CellMap {
-            size: size,
-            cells: cells,
+    pub fn with_only_first() -> Self {
+        let mut out = Self::empty();
+        out.insert(0);
+        out
+    }
+
+    pub fn len(&self) -> u8 {
+        self.data.iter().fold(0, |acc, block| acc + block.count_ones() as u8)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.data.iter().all(|&block| block == 0)
+    }
+
+    pub fn contains(&self, query: u8) -> bool {
+        // We save 64 values per block (by using u64's). Here we determine
+        // what block the query lives in.
+        let block = &self.data[query as usize / 64];
+
+        // Check if the corresponding bit is set.
+        block & (1 << query % 64) != 0
+    }
+
+    pub fn insert(&mut self, elem: u8) {
+        // See `contains` for further details
+        let block = &mut self.data[elem as usize / 64];
+
+        // We set a single 1 at the corresponding position.
+        *block |= 1 << (elem % 64);
+    }
+
+    pub fn is_subset_of(&self, other: &Self) -> bool {
+        self.data.iter()
+            .zip(&other.data)
+            .all(|(&this, &other)| this & other == this)
+    }
+
+    pub fn count_common_elements(a: &Self, b: &Self) -> u8 {
+        a.data.iter()
+            .zip(&b.data)
+            .fold(0, |acc, (&a, &b)| {
+                acc + (a & b).count_ones() as u8
+            })
+    }
+
+    pub fn count_elements_only_in_first(a: &Self, b: &Self) -> u8 {
+        a.data.iter()
+            .zip(&b.data)
+            .fold(0, |acc, (&a, &b)| {
+                acc + (a ^ (b & b)).count_ones() as u8
+            })
+    }
+
+    pub fn union_with(&mut self, other: &Self) {
+        for (this, &other) in self.data.iter_mut().zip(&other.data) {
+            *this |= other;
+        }
+    }
+
+    pub fn intersect_with(&mut self, other: &Self) {
+        for (this, &other) in self.data.iter_mut().zip(&other.data) {
+            *this &= other;
+        }
+    }
+
+    pub fn without(&mut self, other: &Self) {
+        for (this, &other) in self.data.iter_mut().zip(&other.data) {
+            *this ^= *this & other;
+        }
+    }
+
+    pub fn union(a: &Self, b: &Self) -> Self {
+        let mut a = *a;
+        a.union_with(b);
+        a
+    }
+
+    pub fn intersection(a: &Self, b: &Self) -> Self {
+        let mut a = *a;
+        a.intersect_with(b);
+        a
+    }
+}
+
+impl fmt::Debug for InlineBitSet {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_set().entries(self).finish()
+    }
+}
+
+impl<'a> IntoIterator for &'a InlineBitSet {
+    type Item = u8;
+    type IntoIter = Iter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Iter {
+            set: *self,
+            pos: 0,
         }
     }
 }
 
-
-impl<T> ops::Index<(u8, u8)> for CellMap<T> {
-    type Output = T;
-    fn index(&self, (x, y): (u8, u8)) -> &Self::Output {
-        if x > self.size || y > self.size {
-            panic!(
-                "x ({}) or y ({}) greater than size ({})",
-                x, y, self.size
-            );
-        }
-
-        &self.cells[
-            (y as usize) * (self.size as usize)
-                + (x as usize)
-        ]
-    }
+struct Iter {
+    set: InlineBitSet,
+    pos: u16,
 }
 
-impl<T> ops::IndexMut<(u8, u8)> for CellMap<T> {
-    fn index_mut(&mut self, (x, y): (u8, u8)) -> &mut Self::Output {
-        if x > self.size || y > self.size {
-            panic!(
-                "x ({}) or y ({}) greater than size ({})",
-                x, y, self.size
-            );
+impl Iterator for Iter {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.pos <= u8::max_value().into() && !self.set.contains(self.pos as u8) {
+            self.pos += 1;
         }
 
-        &mut self.cells[
-            (y as usize) * (self.size as usize)
-                + (x as usize)
-        ]
+        match self.pos {
+            0 ... 255 => {
+                self.pos += 1;
+                Some((self.pos - 1) as u8)
+            }
+            _ => None,
+        }
     }
+
+    // TODO: maybe add specializations
 }
