@@ -50,6 +50,11 @@ impl fmt::Debug for State {
 
 impl Solver for Exact {
     fn solve(&self, b: Board) -> Result<Solution, Solution> {
+        // This is actually necessary...
+        if b.is_drenched() {
+            return Ok(vec![]);
+        }
+
         // Generate the graph from the board
         let g = generate_graph(&b);
         debug!("initial graph has {} nodes", g.len());
