@@ -6,9 +6,9 @@
 //! the whole board (every cell) can be index with one byte. This means that
 //! only 256 (16^2) cells are supported.
 //!
+//! For more information about the algorithm of this solver, see the comments
+//! in the source code.
 //!
-//!
-// TODO: Complete documentation above
 use board::Board;
 use color::Color;
 use super::{Solver, Solution};
@@ -93,7 +93,6 @@ impl Solver for Exact {
             // Since we are reusing the old vector, we have to clear it.
             new_states.clear();
             // Preallocate memory for the expected number of new states.
-            // TODO: reserve does something different!
             new_states.reserve(EXPECTED_BRANCHING_FACTOR * states.len());
 
             // ### ------------------------------------------------------------
@@ -241,8 +240,6 @@ impl Solver for Exact {
             }
 
             // Swap the two vectors (in order to reuse the memory)
-            // TODO: maybe it's pretty uncommon that we actually reusing
-            // memory ... needs to be measured!
             mem::swap(&mut states, &mut new_states);
         }
         unreachable!();
@@ -442,7 +439,7 @@ impl InlineBitSet {
     }
 
     pub fn len(&self) -> u8 {
-        // TODO: maybe it's faster to cache the length. Measure!
+        // TODO: maybe it's faster to cache the length (probably not). Measure!
         self.data.iter().fold(0, |acc, block| acc + block.count_ones() as u8)
     }
 
