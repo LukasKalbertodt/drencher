@@ -34,7 +34,24 @@ impl Board {
         Self::with_rng(size, &mut rng)
     }
 
-    pub fn deterministic_random(size: u8, id: u32) -> Board {
+    /// Returns the nth permutation of a board with the given size. Note that
+    /// there are 6^(size^2) permutations (many!). The number of permutations
+    /// is greater than u64::MAX for size=5 already!
+    pub fn permutation(size: u8, mut n: u64) -> Board {
+        let mut cells = vec![Color::new(0); (size as usize).pow(2)];
+
+        for cell in &mut cells {
+            *cell = Color::new((n % 6) as u8);
+            n /= 6;
+        }
+        Board {
+            size: size,
+            cells: cells,
+        }
+    }
+
+    pub fn deterministic_random(size: u8, id: u64) -> Board {
+        let id = (id & ::std::u32::MAX as u64) as u32;
         let mut rng = IsaacRng::from_seed(&[id, id + 42, id + 27, id + 1337]);
         Self::with_rng(size, &mut rng)
     }

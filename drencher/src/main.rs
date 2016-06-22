@@ -143,10 +143,12 @@ fn play_standard_mode(init_algo: &str, size: u8, player: &str)
     Ok(())
 }
 
-fn gen_board(init_algo: &str, size: u8, id: u32) -> Result<Board, ()> {
+fn gen_board(init_algo: &str, size: u8, id: u64) -> Result<Board, ()> {
     match init_algo {
         "random" => Ok(Board::random(size)),
         "deter0" => Ok(Board::deterministic_random(size, id)),
+        "uniform" => Ok(Board::uniform(size)),
+        "permutations" => Ok(Board::permutation(size, id)),
         other => {
             println!("Intial board algorithm '{}' doesn't exist!", other);
             Err(())
